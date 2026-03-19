@@ -1,0 +1,24 @@
+{
+  "name": "zdo",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "cp src/sketch.js public/sketch.js && echo 'Dev build (unobfuscated) ready'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doylecentral/zdo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/doylecentral/zdo/issues"
+  },
+  "homepage": "https://github.com/doylecentral/zdo#readme",
+  "devDependencies": {
+    "javascript-obfuscator": "^5.3.0"
+  }
+}
