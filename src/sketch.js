@@ -2,9 +2,27 @@ let triangles = [];
 const NUM_TRIANGLES = 18;
 let helloTriangleIndex;
 let blueArrowIndex;
+let qrTriangleIndex;
 
-// Blue glass color
+// Color schemes — normal and inverted (Konami)
 const BLUE_GLASS = [70, 150, 220];
+const ORANGE_GLASS = [220, 130, 50];
+
+// Konami code state
+const KONAMI_SEQ = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65]; // up up down down left right left right b a
+let konamiPos = 0;
+let inverted = false;
+let invertT = 0; // 0 = normal, 1 = fully inverted (smooth transition)
+
+// QR code state
+let qrMatrix = null;
+let qrModuleCount = 0;
+let qrReveal = 0; // 0–1 animation
+let qrHovering = false;
+
+// Film grain
+let grainBuffer;
+let grainTick = 0;
 
 // Origami animation state
 let origami = {
@@ -24,14 +42,44 @@ let swarm = {
   timer: 0,
   settledOnEdges: false
 };
-const SWARM_DURATION = 600; // 10 seconds at 60fps
-const SWARM_SETTLE_START = 360; // start settling at 6 seconds
-const MIN_HELLO_SIZE = 60; // minimum triangle size for hello label
+const SWARM_DURATION = 600;
+const SWARM_SETTLE_START = 360;
+const MIN_HELLO_SIZE = 60;
+
+// ─── Color helpers (lerp between normal/inverted) ───
+
+function bgColor() {
+  return lerpColor(color(0), color(245), invertT);
+}
+
+function fgColor(a) {
+  // foreground stroke/text color
+  let r = lerp(255, 15, invertT);
+  return color(r, a !== undefined ? a : 255);
+}
+
+function accentColor() {
+  // blue glass in normal, orange glass in inverted
+  return [
+    lerp(BLUE_GLASS[0], ORANGE_GLASS[0], invertT),
+    lerp(BLUE_GLASS[1], ORANGE_GLASS[1], invertT),
+    lerp(BLUE_GLASS[2], ORANGE_GLASS[2], invertT)
+  ];
+}
+
+// ─── Setup ───
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   textAlign(CENTER, CENTER);
   textFont('Helvetica');
+
+  // Generate QR matrix
+  buildQR('mailto:doyle@doylecentral.com');
+
+  // Grain buffer (small, tiled)
+  grainBuffer = createGraphics(128, 128);
+  refreshGrain();
 
   for (let i = 0; i < NUM_TRIANGLES; i++) {
     let isBackground = i >= 12;
@@ -50,15 +98,145 @@ function setup() {
     });
   }
 
-  pickHelloAndBlue();
+  pickSpecialTriangles();
 
-  // Fade in canvas
   let c = document.querySelector('canvas');
   if (c) c.classList.add('loaded');
 }
 
-function pickHelloAndBlue() {
-  // Pick hello triangle from foreground triangles that are large enough
+// ─── QR generation ───
+
+function buildQR(data) {
+  if (typeof qrcode === 'undefined') return;
+  let qr = qrcode(0, 'M');
+  qr.addData(data);
+  qr.make();
+  qrModuleCount = qr.getModuleCount();
+  qrMatrix = [];
+  for (let r = 0; r < qrModuleCount; r++) {
+    qrMatrix[r] = [];
+    for (let c = 0; c < qrModuleCount; c++) {
+      qrMatrix[r][c] = qr.isDark(r, c);
+    }
+  }
+}
+
+function drawQRAtTriangle(t) {
+  if (!qrMatrix || qrReveal <= 0.01) return;
+
+  // Minimum 160px so QR is always scannable
+  let qrSize = max(160, t.size * 2.2);
+  let moduleSize = qrSize / qrModuleCount;
+  let ox = t.x - qrSize / 2;
+  let oy = t.y - qrSize / 2;
+
+  let acc = accentColor();
+
+  push();
+  // Background plate with slight transparency
+  noStroke();
+  let plateAlpha = qrReveal * 200;
+  if (inverted) {
+    fill(245, plateAlpha);
+  } else {
+    fill(0, plateAlpha);
+  }
+  rectMode(CENTER);
+  rect(t.x, t.y, qrSize + 16, qrSize + 16, 4);
+
+  // Draw QR modules with staggered reveal
+  let totalModules = qrModuleCount * qrModuleCount;
+  let revealedCount = floor(qrReveal * totalModules * 1.3); // overshoot so it fills
+
+  let idx = 0;
+  for (let r = 0; r < qrModuleCount; r++) {
+    for (let c = 0; c < qrModuleCount; c++) {
+      if (qrMatrix[r][c] && idx < revealedCount) {
+        let mx = ox + c * moduleSize;
+        let my = oy + r * moduleSize;
+
+        // Accent color for finder patterns, fg color for data
+        let isFinder = (r < 7 && c < 7) || (r < 7 && c >= qrModuleCount - 7) || (r >= qrModuleCount - 7 && c < 7);
+        if (isFinder) {
+          fill(acc[0], acc[1], acc[2], qrReveal * 255);
+        } else {
+          let fg = inverted ? 15 : 255;
+          fill(fg, qrReveal * 220);
+        }
+        noStroke();
+        rect(mx + moduleSize / 2, my + moduleSize / 2, moduleSize * 0.9, moduleSize * 0.9);
+      }
+      idx++;
+    }
+  }
+
+  // Scan label
+  let labelAlpha = constrain((qrReveal - 0.6) / 0.4, 0, 1) * 180;
+  if (labelAlpha > 0) {
+    fill(acc[0], acc[1], acc[2], labelAlpha);
+    noStroke();
+    textSize(constrain(qrSize * 0.08, 10, 16));
+    textAlign(CENTER, CENTER);
+    text('scan me', t.x, t.y + qrSize / 2 + 14);
+  }
+
+  pop();
+}
+
+// ─── Grain ───
+
+function refreshGrain() {
+  grainBuffer.loadPixels();
+  for (let i = 0; i < grainBuffer.pixels.length; i += 4) {
+    let v = random(255);
+    grainBuffer.pixels[i] = v;
+    grainBuffer.pixels[i + 1] = v;
+    grainBuffer.pixels[i + 2] = v;
+    grainBuffer.pixels[i + 3] = 255;
+  }
+  grainBuffer.updatePixels();
+}
+
+function drawGrain() {
+  // Refresh grain texture every 4 frames for animated look
+  grainTick++;
+  if (grainTick % 4 === 0) refreshGrain();
+
+  push();
+  drawingContext.globalAlpha = inverted ? 0.03 : 0.045;
+  drawingContext.globalCompositeOperation = inverted ? 'multiply' : 'screen';
+
+  // Tile the small grain buffer across the canvas
+  for (let x = 0; x < width; x += 128) {
+    for (let y = 0; y < height; y += 128) {
+      image(grainBuffer, x, y);
+    }
+  }
+
+  drawingContext.globalAlpha = 1.0;
+  drawingContext.globalCompositeOperation = 'source-over';
+  pop();
+}
+
+// ─── Konami code ───
+
+function keyPressed() {
+  if (keyCode === KONAMI_SEQ[konamiPos]) {
+    konamiPos++;
+    if (konamiPos >= KONAMI_SEQ.length) {
+      inverted = !inverted;
+      konamiPos = 0;
+    }
+  } else {
+    // Allow partial restart if first key matches
+    konamiPos = (keyCode === KONAMI_SEQ[0]) ? 1 : 0;
+  }
+}
+
+// ─── Triangle picking ───
+
+function pickSpecialTriangles() {
+  // Hello triangle — foreground, large enough
   let candidates = [];
   for (let i = 0; i < 12; i++) {
     if (triangles[i].size >= MIN_HELLO_SIZE) candidates.push(i);
@@ -68,12 +246,28 @@ function pickHelloAndBlue() {
   }
   helloTriangleIndex = candidates[floor(random(candidates.length))];
 
+  // Blue arrow triangle
   do {
     blueArrowIndex = floor(random(0, 12));
   } while (blueArrowIndex === helloTriangleIndex);
+
+  // QR triangle — different from hello and blue, prefer medium-large
+  let qrCandidates = [];
+  for (let i = 0; i < 12; i++) {
+    if (i !== helloTriangleIndex && i !== blueArrowIndex && triangles[i].size >= 50) {
+      qrCandidates.push(i);
+    }
+  }
+  if (qrCandidates.length === 0) {
+    for (let i = 0; i < 12; i++) {
+      if (i !== helloTriangleIndex && i !== blueArrowIndex) qrCandidates.push(i);
+    }
+  }
+  qrTriangleIndex = qrCandidates[floor(random(qrCandidates.length))];
 }
 
-// Detach all arrowheads from all triangles into the swarm
+// ─── Swarm ───
+
 function spawnSwarm(cx, cy) {
   swarm.active = true;
   swarm.timer = 0;
@@ -89,7 +283,6 @@ function spawnSwarm(cx, cy) {
       let vx = cos(vertAngle) * t.size;
       let vy = sin(vertAngle) * t.size;
 
-      // Transform vertex to world space
       let cosA = cos(t.angle);
       let sinA = sin(t.angle);
       let worldX = t.x + vx * cosA - vy * sinA;
@@ -100,30 +293,17 @@ function spawnSwarm(cx, cy) {
       let ny = sin(nextVertAngle) * t.size;
       let edgeAngle = atan2(ny - vy, nx - vx) + t.angle;
 
-      // Pick a random settle target on the screen edges
       let edge = floor(random(4));
       let targetX, targetY, targetAngle;
       switch (edge) {
-        case 0: // top
-          targetX = random(width);
-          targetY = 0;
-          targetAngle = HALF_PI;
-          break;
-        case 1: // right
-          targetX = width;
-          targetY = random(height);
-          targetAngle = PI;
-          break;
-        case 2: // bottom
-          targetX = random(width);
-          targetY = height;
-          targetAngle = -HALF_PI;
-          break;
-        case 3: // left
-          targetX = 0;
-          targetY = random(height);
-          targetAngle = 0;
-          break;
+        case 0:
+          targetX = random(width); targetY = 0; targetAngle = HALF_PI; break;
+        case 1:
+          targetX = width; targetY = random(height); targetAngle = PI; break;
+        case 2:
+          targetX = random(width); targetY = height; targetAngle = -HALF_PI; break;
+        case 3:
+          targetX = 0; targetY = random(height); targetAngle = 0; break;
       }
 
       swarm.arrows.push({
@@ -134,11 +314,9 @@ function spawnSwarm(cx, cy) {
         sw: t.sw,
         isBlue: isBlue,
         alpha: isBlue ? 180 : lerp(t.alpha, 255, t.flashTimer),
-        // Swarm velocity — burst outward from click then random
         vx: (worldX - cx) * 0.05 + random(-4, 4),
         vy: (worldY - cy) * 0.05 + random(-4, 4),
         rotSpeed: random(-0.15, 0.15),
-        // Settle target
         targetX: targetX,
         targetY: targetY,
         targetAngle: targetAngle,
@@ -151,19 +329,21 @@ function spawnSwarm(cx, cy) {
 function drawSwarmArrow(a) {
   let arrowLen = a.size * 0.22;
   let arrowWidth = a.size * 0.12;
+  let acc = accentColor();
 
   push();
   translate(a.x, a.y);
   rotate(a.angle);
 
   if (a.isBlue) {
-    fill(BLUE_GLASS[0], BLUE_GLASS[1], BLUE_GLASS[2], a.alpha * 0.3);
-    stroke(BLUE_GLASS[0], BLUE_GLASS[1], BLUE_GLASS[2], a.alpha);
-    drawingContext.shadowColor = `rgba(${BLUE_GLASS[0]}, ${BLUE_GLASS[1]}, ${BLUE_GLASS[2]}, 0.4)`;
+    fill(acc[0], acc[1], acc[2], a.alpha * 0.3);
+    stroke(acc[0], acc[1], acc[2], a.alpha);
+    drawingContext.shadowColor = `rgba(${floor(acc[0])}, ${floor(acc[1])}, ${floor(acc[2])}, 0.4)`;
     drawingContext.shadowBlur = 8;
   } else {
     noFill();
-    stroke(255, a.alpha);
+    let fg = lerp(255, 15, invertT);
+    stroke(fg, a.alpha);
     drawingContext.shadowBlur = 0;
   }
   strokeWeight(a.sw * 0.8);
@@ -189,30 +369,23 @@ function updateSwarm() {
 
   for (let a of swarm.arrows) {
     if (settling) {
-      // Lerp toward edge target
       a.x = lerp(a.x, a.targetX, easedSettle * 0.08);
       a.y = lerp(a.y, a.targetY, easedSettle * 0.08);
       a.angle = lerpAngle(a.angle, a.targetAngle, easedSettle * 0.06);
-
-      // Dampen velocity
       a.vx *= 0.92;
       a.vy *= 0.92;
       a.rotSpeed *= 0.92;
     } else {
-      // Swarming: chaotic movement with flocking behavior
-      // Add some noise-driven acceleration
       let noiseVal = noise(a.x * 0.003, a.y * 0.003, frameCount * 0.01);
       a.vx += cos(noiseVal * TWO_PI * 2) * 0.3;
       a.vy += sin(noiseVal * TWO_PI * 2) * 0.3;
 
-      // Speed limit
       let speed = sqrt(a.vx * a.vx + a.vy * a.vy);
       if (speed > 6) {
         a.vx = (a.vx / speed) * 6;
         a.vy = (a.vy / speed) * 6;
       }
 
-      // Bounce off screen edges during swarm
       if (a.x < 10) { a.x = 10; a.vx = abs(a.vx); }
       if (a.x > width - 10) { a.x = width - 10; a.vx = -abs(a.vx); }
       if (a.y < 10) { a.y = 10; a.vy = abs(a.vy); }
@@ -226,7 +399,6 @@ function updateSwarm() {
     drawSwarmArrow(a);
   }
 
-  // Fade out after fully settled
   if (swarm.timer > SWARM_DURATION) {
     let fadeOut = constrain((swarm.timer - SWARM_DURATION) / 60, 0, 1);
     for (let a of swarm.arrows) {
@@ -246,18 +418,20 @@ function lerpAngle(a, b, t) {
   return a + diff * t;
 }
 
-// Draw an arrowhead at the tip of each triangle vertex
+// ─── Arrow + Triangle drawing ───
+
 function drawArrowhead(x, y, angle, size, isBlue) {
   let arrowLen = size * 0.22;
   let arrowWidth = size * 0.12;
+  let acc = accentColor();
 
   push();
   translate(x, y);
   rotate(angle);
 
   if (isBlue) {
-    fill(BLUE_GLASS[0], BLUE_GLASS[1], BLUE_GLASS[2], 50);
-    stroke(BLUE_GLASS[0], BLUE_GLASS[1], BLUE_GLASS[2]);
+    fill(acc[0], acc[1], acc[2], 50);
+    stroke(acc[0], acc[1], acc[2]);
   } else {
     noFill();
   }
@@ -278,18 +452,21 @@ function drawTriangleWithArrows(t, currentAlpha, isBlue) {
     verts.push({ x: cos(a) * t.size, y: sin(a) * t.size });
   }
 
+  let acc = accentColor();
+
   push();
   translate(t.x, t.y);
   rotate(t.angle);
 
   if (isBlue) {
-    fill(BLUE_GLASS[0], BLUE_GLASS[1], BLUE_GLASS[2], 15);
-    stroke(BLUE_GLASS[0], BLUE_GLASS[1], BLUE_GLASS[2], currentAlpha);
-    drawingContext.shadowColor = `rgba(${BLUE_GLASS[0]}, ${BLUE_GLASS[1]}, ${BLUE_GLASS[2]}, 0.3)`;
+    fill(acc[0], acc[1], acc[2], 15);
+    stroke(acc[0], acc[1], acc[2], currentAlpha);
+    drawingContext.shadowColor = `rgba(${floor(acc[0])}, ${floor(acc[1])}, ${floor(acc[2])}, 0.3)`;
     drawingContext.shadowBlur = 12;
   } else {
     noFill();
-    stroke(255, currentAlpha);
+    let fg = lerp(255, 15, invertT);
+    stroke(fg, currentAlpha);
     drawingContext.shadowBlur = 0;
   }
   strokeWeight(t.sw);
@@ -300,7 +477,6 @@ function drawTriangleWithArrows(t, currentAlpha, isBlue) {
 
   drawingContext.shadowBlur = 0;
 
-  // Only draw arrowheads when swarm is not active
   if (!swarm.active) {
     for (let j = 0; j < 3; j++) {
       let v = verts[j];
@@ -308,10 +484,11 @@ function drawTriangleWithArrows(t, currentAlpha, isBlue) {
       let edgeAngle = atan2(next.y - v.y, next.x - v.x);
 
       if (isBlue) {
-        stroke(BLUE_GLASS[0], BLUE_GLASS[1], BLUE_GLASS[2], currentAlpha);
+        stroke(acc[0], acc[1], acc[2], currentAlpha);
         strokeWeight(t.sw * 0.8);
       } else {
-        stroke(255, currentAlpha);
+        let fg = lerp(255, 15, invertT);
+        stroke(fg, currentAlpha);
         strokeWeight(t.sw * 0.8);
       }
       drawArrowhead(v.x, v.y, edgeAngle, t.size, isBlue);
@@ -321,6 +498,8 @@ function drawTriangleWithArrows(t, currentAlpha, isBlue) {
   pop();
 }
 
+// ─── Origami ───
+
 function spawnOrigami(cx, cy) {
   origami.active = true;
   origami.timer = 0;
@@ -329,7 +508,6 @@ function spawnOrigami(cx, cy) {
   origami.shards = [];
   origami.foldLines = [];
 
-  // Also trigger arrow swarm
   spawnSwarm(cx, cy);
 
   let numRings = 5;
@@ -389,14 +567,16 @@ function drawOrigami() {
   let collapsePhase = progress > 0.7 ? (progress - 0.7) / 0.3 : 0;
   let globalAlphaMult = collapsePhase > 0 ? 1 - easeInQuad(collapsePhase) : 1;
 
-  // Fold lines with arrowheads at tips
+  let fg = lerp(255, 15, invertT);
+
+  // Fold lines
   for (let fl of origami.foldLines) {
     if (t < fl.delay) continue;
     let lineProgress = constrain((t - fl.delay) / 20, 0, 1);
     fl.alpha = lerp(fl.alpha, 200 * globalAlphaMult, 0.1);
 
     let len = fl.length * easeOutQuad(lineProgress);
-    stroke(255, fl.alpha);
+    stroke(fg, fl.alpha);
     strokeWeight(1);
     let x1 = cx;
     let y1 = cy;
@@ -409,7 +589,7 @@ function drawOrigami() {
       translate(x2, y2);
       rotate(fl.angle);
       noFill();
-      stroke(255, fl.alpha);
+      stroke(fg, fl.alpha);
       strokeWeight(1.2);
       let aLen = 10;
       line(0, 0, -aLen, -aLen * 0.5);
@@ -425,7 +605,7 @@ function drawOrigami() {
         let ty = lerp(y1, y2, frac);
         let perp = fl.angle + HALF_PI;
         let tickLen = 6;
-        stroke(255, fl.alpha * 0.5);
+        stroke(fg, fl.alpha * 0.5);
         line(tx - cos(perp) * tickLen, ty - sin(perp) * tickLen,
              tx + cos(perp) * tickLen, ty + sin(perp) * tickLen);
       }
@@ -462,16 +642,16 @@ function drawOrigami() {
     let foldScale = cos(s.foldAngle);
     scale(1, foldScale);
 
-    stroke(255, s.alpha);
+    stroke(fg, s.alpha);
     strokeWeight(1.2);
-    fill(255, s.fillAlpha * globalAlphaMult);
+    fill(fg, s.fillAlpha * globalAlphaMult);
     beginShape();
     vertex(0, -s.size * 0.6);
     vertex(-s.size * 0.5, s.size * 0.4);
     vertex(s.size * 0.5, s.size * 0.4);
     endShape(CLOSE);
 
-    stroke(255, s.alpha * 0.4);
+    stroke(fg, s.alpha * 0.4);
     strokeWeight(0.5);
     if (s.mirror) {
       line(0, -s.size * 0.6, -s.size * 0.25, s.size * 0.4);
@@ -486,11 +666,11 @@ function drawOrigami() {
   if (t < 30) {
     let flashAlpha = (1 - t / 30) * 200;
     noStroke();
-    fill(255, flashAlpha);
+    fill(fg, flashAlpha);
     ellipse(cx, cy, t * 4, t * 4);
   }
 
-  // End origami (swarm continues independently)
+  // End origami
   if (progress >= 1) {
     origami.active = false;
     for (let tri of triangles) {
@@ -501,19 +681,31 @@ function drawOrigami() {
         tri.origSave = null;
       }
     }
-    pickHelloAndBlue();
+    pickSpecialTriangles();
   }
 }
+
+// ─── Easing ───
 
 function easeOutQuad(x) { return 1 - (1 - x) * (1 - x); }
 function easeInQuad(x) { return x * x; }
 function easeInOutCubic(x) { return x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2; }
 
-function draw() {
-  // Trail fade — more reliable than semi-transparent rect
-  background(0, 220);
+// ─── Main draw loop ───
 
-  // Occasionally flash a random triangle
+function draw() {
+  // Smooth invert transition
+  let targetInvert = inverted ? 1 : 0;
+  invertT = lerp(invertT, targetInvert, 0.04);
+
+  // Background with trail fade
+  let bg = bgColor();
+  background(red(bg), green(bg), blue(bg), 220);
+
+  // Film grain overlay
+  drawGrain();
+
+  // Occasional flash
   if (random() < 0.005) {
     let t = random(triangles);
     t.flashTimer = 1.0;
@@ -527,7 +719,7 @@ function draw() {
     t.x += t.drift.x;
     t.y += t.drift.y;
 
-    // Mouse repulsion (only when not animating)
+    // Mouse repulsion
     if (!origami.active && !swarm.active) {
       let dx = t.x - mouseX;
       let dy = t.y - mouseY;
@@ -568,54 +760,102 @@ function draw() {
       push();
       translate(t.x, t.y);
       let labelSize = constrain(t.size * 0.28, 10, 24);
-      fill(255, 140);
+      fill(lerp(255, 15, invertT), 140);
       noStroke();
       textSize(labelSize);
       textAlign(CENTER, CENTER);
       text('hello', 0, 0);
       pop();
     }
+
+    // QR reveal on hover
+    if (i === qrTriangleIndex && !origami.active && !swarm.active) {
+      let d = dist(mouseX, mouseY, t.x, t.y);
+      qrHovering = d < t.size * 1.2;
+    }
   }
 
-  // Swarm layer — arrows flying around then settling on edges
+  // Animate QR reveal
+  if (qrHovering && qrReveal < 1) {
+    qrReveal = min(1, qrReveal + 0.035);
+  } else if (!qrHovering && qrReveal > 0) {
+    qrReveal = max(0, qrReveal - 0.06);
+  }
+
+  // Draw QR overlay on QR triangle
+  if (qrReveal > 0.01 && qrTriangleIndex !== undefined) {
+    drawQRAtTriangle(triangles[qrTriangleIndex]);
+  }
+
+  // Swarm layer
   updateSwarm();
 
-  // Origami animation layer
+  // Origami layer
   drawOrigami();
 
-  // Pulsing glow behind text
+  // Pulsing glow title
   let glowSize = min(width, height) * 0.08;
   let pulse = sin(frameCount * 0.02) * 0.5 + 0.5;
   let glowAlpha = lerp(15, 40, pulse);
+  let fg = lerp(255, 15, invertT);
 
   noStroke();
   textAlign(CENTER, CENTER);
   for (let r = 3; r >= 1; r--) {
-    fill(255, glowAlpha * (1 / r));
+    fill(fg, glowAlpha * (1 / r));
     textSize(glowSize + r * 2);
     text('Zero Dash One', width / 2, height / 2);
   }
 
-  fill(255);
+  fill(fg);
   noStroke();
   textSize(glowSize);
   text('Zero Dash One', width / 2, height / 2);
 }
 
+// ─── Interaction ───
+
 function mousePressed() {
   if (origami.active || swarm.active) return;
-  let t = triangles[helloTriangleIndex];
-  let d = dist(mouseX, mouseY, t.x, t.y);
-  if (d < t.size) {
-    spawnOrigami(t.x, t.y);
+
+  // Hello triangle click → origami
+  let ht = triangles[helloTriangleIndex];
+  let dh = dist(mouseX, mouseY, ht.x, ht.y);
+  if (dh < ht.size) {
+    spawnOrigami(ht.x, ht.y);
+    return;
+  }
+
+  // QR triangle click → open mailto
+  if (qrTriangleIndex !== undefined) {
+    let qt = triangles[qrTriangleIndex];
+    let dq = dist(mouseX, mouseY, qt.x, qt.y);
+    if (dq < qt.size * 1.2 && qrReveal > 0.3) {
+      window.open('mailto:doyle@doylecentral.com', '_self');
+    }
   }
 }
 
 function mouseMoved() {
   if (origami.active || swarm.active) return;
-  let t = triangles[helloTriangleIndex];
-  let d = dist(mouseX, mouseY, t.x, t.y);
-  cursor(d < t.size ? HAND : ARROW);
+
+  let ht = triangles[helloTriangleIndex];
+  let dh = dist(mouseX, mouseY, ht.x, ht.y);
+  if (dh < ht.size) {
+    cursor(HAND);
+    return;
+  }
+
+  if (qrTriangleIndex !== undefined) {
+    let qt = triangles[qrTriangleIndex];
+    let dq = dist(mouseX, mouseY, qt.x, qt.y);
+    if (dq < qt.size * 1.2) {
+      cursor(HAND);
+      return;
+    }
+  }
+
+  cursor(ARROW);
 }
 
 function windowResized() {

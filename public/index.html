@@ -12,7 +12,9 @@
   <meta name="twitter:title" content="Zero Dash One">
   <meta name="twitter:description" content="Creative technology studio">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preload" as="font" href="https://fonts.gstatic.com/s/helveticaneue/v70/1Ptsg8zYS_SKggPNyC0ISg.woff2" crossorigin type="font/woff2">
   <script src="/p5.min.js"></script>
+  <script src="/qrcode.min.js"></script>
   <style>
     * { margin: 0; padding: 0; }
     html, body {
@@ -35,6 +37,17 @@
   </style>
 </head>
 <body>
+  <noscript>
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#fff;font-family:Helvetica,sans-serif;text-align:center;">
+      <div>
+        <svg viewBox="0 0 64 64" width="64" height="64" style="margin-bottom:1rem;">
+          <polygon points="32,8 56,56 8,56" fill="none" stroke="#fff" stroke-width="2"/>
+        </svg>
+        <h1 style="font-weight:300;letter-spacing:0.1em;">Zero Dash One</h1>
+        <p style="opacity:0.5;margin-top:0.5rem;">Enable JavaScript to experience this site.</p>
+      </div>
+    </div>
+  </noscript>
   <script src="/sketch.js"></script>
 </body>
 </html>
