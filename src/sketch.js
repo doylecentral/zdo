@@ -24,6 +24,13 @@ let qrHovering = false;
 let grainBuffer;
 let grainTick = 0;
 
+// Split-flap display
+const FLAP_TEXT = 'ZERO DASH ONE';
+const FLAP_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -';
+let flapSlots = [];
+let flapIntroTimer = 0;
+let flapSettled = false;
+
 // Origami animation state
 let origami = {
   active: false,
@@ -99,9 +106,28 @@ function setup() {
   }
 
   pickSpecialTriangles();
+  initSplitFlap();
 
   let c = document.querySelector('canvas');
   if (c) c.classList.add('loaded');
+}
+
+function initSplitFlap() {
+  flapSlots = [];
+  flapIntroTimer = 0;
+  flapSettled = false;
+  for (let i = 0; i < FLAP_TEXT.length; i++) {
+    let target = FLAP_TEXT[i];
+    flapSlots.push({
+      target: target,
+      current: FLAP_CHARS[floor(random(FLAP_CHARS.length))],
+      settled: false,
+      settleDelay: 60 + i * 12, // stagger left to right
+      flipTimer: 0,
+      flipInterval: floor(random(3, 6)), // frames between flips
+      flipPhase: 0 // 0–1 visual flip animation
+    });
+  }
 }
 
 // ─── QR generation ───
@@ -741,6 +767,127 @@ function drawOrigami() {
   }
 }
 
+// ─── Split-flap display ───
+
+function updateAndDrawSplitFlap() {
+  flapIntroTimer++;
+
+  let fg = lerp(255, 15, invertT);
+  let bgVal = lerp(20, 230, invertT);
+  let cardBg = lerp(30, 215, invertT);
+  let dividerColor = lerp(10, 235, invertT);
+
+  // Responsive sizing
+  let fontSize = constrain(min(width, height) * 0.045, 18, 42);
+  let cardW = fontSize * 0.75;
+  let cardH = fontSize * 1.3;
+  let gap = fontSize * 0.12;
+  let totalW = flapSlots.length * (cardW + gap) - gap;
+
+  // Position: upper right with padding
+  let baseX = width - totalW - 30;
+  let baseY = 40;
+
+  let allSettled = true;
+
+  push();
+  textFont('Courier New');
+  textAlign(CENTER, CENTER);
+  textSize(fontSize);
+  rectMode(CENTER);
+
+  for (let i = 0; i < flapSlots.length; i++) {
+    let slot = flapSlots[i];
+    let cx = baseX + i * (cardW + gap) + cardW / 2;
+    let cy = baseY + cardH / 2;
+
+    // Update flip logic
+    if (!slot.settled) {
+      allSettled = false;
+      if (flapIntroTimer >= slot.settleDelay) {
+        // Time to settle — land on target
+        slot.current = slot.target;
+        slot.settled = true;
+        slot.flipPhase = 1.0; // trigger final flip
+      } else {
+        // Still flipping through random chars
+        slot.flipTimer++;
+        if (slot.flipTimer >= slot.flipInterval) {
+          slot.flipTimer = 0;
+          slot.flipPhase = 1.0; // trigger flip animation
+          // Pick a new random char (avoid repeating)
+          let next;
+          do {
+            next = FLAP_CHARS[floor(random(FLAP_CHARS.length))];
+          } while (next === slot.current && FLAP_CHARS.length > 1);
+          slot.current = next;
+        }
+      }
+    }
+
+    // Decay flip phase
+    if (slot.flipPhase > 0) {
+      slot.flipPhase *= 0.82;
+      if (slot.flipPhase < 0.01) slot.flipPhase = 0;
+    }
+
+    // Draw card background
+    noStroke();
+    fill(cardBg, slot.current === ' ' ? 100 : 220);
+    rect(cx, cy, cardW, cardH, 2);
+
+    // Draw the character with flip effect
+    let flipScale = 1 - slot.flipPhase * 0.3;
+    let flipAlpha = slot.settled ? 255 : lerp(180, 255, 1 - slot.flipPhase);
+
+    push();
+    translate(cx, cy);
+    scale(1, flipScale);
+
+    // Character
+    fill(fg, flipAlpha);
+    noStroke();
+    text(slot.current, 0, 0);
+    pop();
+
+    // Center divider line (the split)
+    stroke(dividerColor, 150);
+    strokeWeight(1);
+    line(cx - cardW / 2, cy, cx + cardW / 2, cy);
+
+    // Subtle top highlight
+    noStroke();
+    fill(fg, 8);
+    rect(cx, cy - cardH / 4, cardW, cardH / 2, 2, 2, 0, 0);
+  }
+
+  // Once all settled, add subtle pulsing glow behind the whole display
+  if (allSettled && !flapSettled) flapSettled = true;
+
+  if (flapSettled) {
+    let pulse = sin(frameCount * 0.02) * 0.5 + 0.5;
+    let glowAlpha = lerp(5, 20, pulse);
+
+    noStroke();
+    fill(fg, glowAlpha);
+    textSize(fontSize);
+    textFont('Courier New');
+    textAlign(CENTER, CENTER);
+
+    for (let i = 0; i < flapSlots.length; i++) {
+      let cx = baseX + i * (cardW + gap) + cardW / 2;
+      let cy = baseY + cardH / 2;
+      // Glow behind each character
+      for (let r = 3; r >= 1; r--) {
+        fill(fg, glowAlpha * (1 / r));
+        text(flapSlots[i].current, cx, cy);
+      }
+    }
+  }
+
+  pop();
+}
+
 // ─── Easing ───
 
 function easeOutQuad(x) { return 1 - (1 - x) * (1 - x); }
@@ -845,24 +992,8 @@ function draw() {
   // Origami layer
   drawOrigami();
 
-  // Pulsing glow title
-  let glowSize = min(width, height) * 0.08;
-  let pulse = sin(frameCount * 0.02) * 0.5 + 0.5;
-  let glowAlpha = lerp(15, 40, pulse);
-  let fg = lerp(255, 15, invertT);
-
-  noStroke();
-  textAlign(CENTER, CENTER);
-  for (let r = 3; r >= 1; r--) {
-    fill(fg, glowAlpha * (1 / r));
-    textSize(glowSize + r * 2);
-    text('Zero Dash One', width / 2, height / 2);
-  }
-
-  fill(fg);
-  noStroke();
-  textSize(glowSize);
-  text('Zero Dash One', width / 2, height / 2);
+  // Split-flap airport display — upper right
+  updateAndDrawSplitFlap();
 }
 
 // ─── Interaction ───
