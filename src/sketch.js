@@ -183,6 +183,62 @@ function drawQRAtTriangle(t) {
   pop();
 }
 
+// ─── QR Icon (drawn with p5 primitives) ───
+
+function drawQRIcon(triSize) {
+  let s = constrain(triSize * 0.4, 16, 42); // icon size
+  let u = s / 7; // unit size (7x7 grid)
+  let fg = lerp(255, 15, invertT);
+  let acc = accentColor();
+  let half = s / 2;
+
+  // Slight transparency
+  let a = 160;
+
+  // Draw finder pattern (outer square + inner square)
+  function finderPattern(ox, oy) {
+    // Outer ring
+    noFill();
+    stroke(acc[0], acc[1], acc[2], a);
+    strokeWeight(constrain(u * 0.35, 0.5, 1.5));
+    rect(ox, oy, u * 3, u * 3);
+    // Inner dot
+    noStroke();
+    fill(acc[0], acc[1], acc[2], a);
+    rect(ox + u, oy + u, u, u);
+  }
+
+  rectMode(CORNER);
+
+  // Three finder patterns (top-left, top-right, bottom-left)
+  finderPattern(-half, -half);
+  finderPattern(-half + u * 4, -half);
+  finderPattern(-half, -half + u * 4);
+
+  // Data dots — scattered small squares in remaining area
+  noStroke();
+  fill(fg, a * 0.7);
+  let dotSize = u * 0.8;
+
+  // Bottom-right quadrant dots
+  rect(-half + u * 4.5, -half + u * 4.5, dotSize, dotSize);
+  rect(-half + u * 5.5, -half + u * 5, dotSize, dotSize);
+  rect(-half + u * 4, -half + u * 6, dotSize, dotSize);
+  rect(-half + u * 5.5, -half + u * 6, dotSize, dotSize);
+
+  // Middle column/row dots
+  rect(-half + u * 3.5, -half + u * 1, dotSize, dotSize);
+  rect(-half + u * 3.5, -half + u * 2.5, dotSize, dotSize);
+  rect(-half + u * 1.5, -half + u * 3.5, dotSize, dotSize);
+  rect(-half + u * 3, -half + u * 3.5, dotSize, dotSize);
+
+  // Right edge dots
+  rect(-half + u * 5, -half + u * 2, dotSize, dotSize);
+  rect(-half + u * 6, -half + u * 3, dotSize, dotSize);
+
+  rectMode(CENTER); // restore default
+}
+
 // ─── Grain ───
 
 function refreshGrain() {
@@ -755,16 +811,12 @@ function draw() {
     let isBlue = (i === blueArrowIndex);
     drawTriangleWithArrows(t, currentAlpha, isBlue);
 
-    // "hello" label
+    // QR icon label (replaces "hello") — counter-rotate so it stays upright
     if (i === helloTriangleIndex && !origami.active && !swarm.active) {
       push();
       translate(t.x, t.y);
-      let labelSize = constrain(t.size * 0.28, 10, 24);
-      fill(lerp(255, 15, invertT), 140);
-      noStroke();
-      textSize(labelSize);
-      textAlign(CENTER, CENTER);
-      text('hello', 0, 0);
+      rotate(-t.angle); // cancel triangle rotation
+      drawQRIcon(t.size);
       pop();
     }
 
@@ -826,14 +878,7 @@ function mousePressed() {
     return;
   }
 
-  // QR triangle click → open mailto
-  if (qrTriangleIndex !== undefined) {
-    let qt = triangles[qrTriangleIndex];
-    let dq = dist(mouseX, mouseY, qt.x, qt.y);
-    if (dq < qt.size * 1.2 && qrReveal > 0.3) {
-      window.open('mailto:doyle@doylecentral.com', '_self');
-    }
-  }
+  // QR triangle click — no link, scan only
 }
 
 function mouseMoved() {
