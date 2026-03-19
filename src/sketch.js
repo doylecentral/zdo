@@ -888,6 +888,52 @@ function updateAndDrawSplitFlap() {
   pop();
 }
 
+// ─── Guide arrows (point toward QR triangle) ───
+
+function drawGuideArrows(tx, ty, triSize, alphaMultiplier) {
+  let acc = accentColor();
+  let numArrows = 3;
+  let orbitRadius = max(triSize * 2, 100);
+  let pulse = sin(frameCount * 0.04) * 0.5 + 0.5;
+  let breathe = sin(frameCount * 0.025) * 12; // arrows drift in/out
+
+  for (let i = 0; i < numArrows; i++) {
+    // Spread arrows evenly, slowly orbit
+    let baseAngle = (TWO_PI / numArrows) * i + frameCount * 0.005;
+    let r = orbitRadius + breathe;
+    let ax = tx + cos(baseAngle) * r;
+    let ay = ty + sin(baseAngle) * r;
+
+    // Arrow points inward toward triangle center
+    let pointAngle = atan2(ty - ay, tx - ax);
+
+    let arrowAlpha = lerp(60, 180, pulse) * alphaMultiplier;
+    let arrowLen = max(triSize * 0.25, 14);
+    let arrowWidth = max(triSize * 0.14, 8);
+
+    push();
+    translate(ax, ay);
+    rotate(pointAngle);
+
+    // Accent-colored arrow with glow
+    fill(acc[0], acc[1], acc[2], arrowAlpha * 0.25);
+    stroke(acc[0], acc[1], acc[2], arrowAlpha);
+    strokeWeight(1);
+    drawingContext.shadowColor = `rgba(${floor(acc[0])}, ${floor(acc[1])}, ${floor(acc[2])}, ${(arrowAlpha / 255 * 0.4).toFixed(2)})`;
+    drawingContext.shadowBlur = 6;
+
+    beginShape();
+    vertex(arrowLen, 0);
+    vertex(-arrowLen * 0.3, -arrowWidth);
+    vertex(-arrowLen * 0.05, 0);
+    vertex(-arrowLen * 0.3, arrowWidth);
+    endShape(CLOSE);
+
+    drawingContext.shadowBlur = 0;
+    pop();
+  }
+}
+
 // ─── Easing ───
 
 function easeOutQuad(x) { return 1 - (1 - x) * (1 - x); }
@@ -958,19 +1004,24 @@ function draw() {
     let isBlue = (i === blueArrowIndex);
     drawTriangleWithArrows(t, currentAlpha, isBlue);
 
-    // QR icon label (replaces "hello") — counter-rotate so it stays upright
-    if (i === helloTriangleIndex && !origami.active && !swarm.active) {
+    // QR icon + hover reveal + guide arrows — all on qrTriangleIndex
+    if (i === qrTriangleIndex && !origami.active && !swarm.active) {
+      // QR icon inside the triangle (counter-rotate to stay upright)
       push();
       translate(t.x, t.y);
-      rotate(-t.angle); // cancel triangle rotation
+      rotate(-t.angle);
       drawQRIcon(t.size);
       pop();
-    }
 
-    // QR reveal on hover
-    if (i === qrTriangleIndex && !origami.active && !swarm.active) {
+      // Hover detection
       let d = dist(mouseX, mouseY, t.x, t.y);
       qrHovering = d < t.size * 1.2;
+
+      // Guide arrows pointing inward (fade out as QR reveals)
+      let guideAlpha = (1 - qrReveal) * (flapSettled ? 1 : 0);
+      if (guideAlpha > 0.01) {
+        drawGuideArrows(t.x, t.y, t.size, guideAlpha);
+      }
     }
   }
 
