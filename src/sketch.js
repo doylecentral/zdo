@@ -1,72 +1,163 @@
+// ═══════════════════════════════════════════════════════════════════
+// Zero Dash One — Pure Canvas2D rewrite (no p5.js)
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── Math constants ───
+const PI = Math.PI;
+const TWO_PI = PI * 2;
+const HALF_PI = PI / 2;
+
+// ─── Lightweight utility functions ───
+function random(a, b) {
+  if (a === undefined) return Math.random();
+  if (b === undefined) {
+    if (Array.isArray(a)) return a[Math.floor(Math.random() * a.length)];
+    return Math.random() * a;
+  }
+  return a + Math.random() * (b - a);
+}
+function lerp(a, b, t) { return a + (b - a) * t; }
+function constrain(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+function dist(x1, y1, x2, y2) { const dx = x2 - x1, dy = y2 - y1; return Math.sqrt(dx * dx + dy * dy); }
+function map(v, inLo, inHi, outLo, outHi) { return outLo + (outHi - outLo) * ((v - inLo) / (inHi - inLo)); }
+const floor = Math.floor;
+const min = Math.min;
+const max = Math.max;
+const sin = Math.sin;
+const cos = Math.cos;
+const atan2 = Math.atan2;
+const sqrt = Math.sqrt;
+const abs = Math.abs;
+const pow = Math.pow;
+
+// ─── Perlin noise (classic implementation) ───
+const _noiseP = new Uint8Array(512);
+const _noiseG = [];
+(function initNoise() {
+  const perm = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) perm[i] = i;
+  for (let i = 255; i > 0; i--) {
+    const j = floor(random(i + 1));
+    const tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
+  }
+  for (let i = 0; i < 512; i++) _noiseP[i] = perm[i & 255];
+  for (let i = 0; i < 256; i++) {
+    const a = random(TWO_PI);
+    _noiseG[i] = [cos(a), sin(a)];
+  }
+})();
+
+function _noiseFade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function _noiseDot(gi, x, y) { return _noiseG[gi][0] * x + _noiseG[gi][1] * y; }
+
+function noise(x, y, z) {
+  if (y === undefined) y = 0;
+  if (z === undefined) z = 0;
+  // Combine z into x/y for a simple 2D noise seeded by z
+  x += z * 31.7;
+  y += z * 17.3;
+  const X = floor(x) & 255, Y = floor(y) & 255;
+  const xf = x - floor(x), yf = y - floor(y);
+  const u = _noiseFade(xf), v = _noiseFade(yf);
+  const aa = _noiseP[_noiseP[X] + Y];
+  const ab = _noiseP[_noiseP[X] + Y + 1];
+  const ba = _noiseP[_noiseP[X + 1] + Y];
+  const bb = _noiseP[_noiseP[X + 1] + Y + 1];
+  const x1 = lerp(_noiseDot(aa, xf, yf), _noiseDot(ba, xf - 1, yf), u);
+  const x2 = lerp(_noiseDot(ab, xf, yf - 1), _noiseDot(bb, xf - 1, yf - 1), u);
+  return lerp(x1, x2, v) * 0.5 + 0.5; // map to 0-1
+}
+
+// ─── Canvas setup ───
+const canvas = document.createElement('canvas');
+document.body.appendChild(canvas);
+const ctx = canvas.getContext('2d');
+
+let width, height;
+let mouseX = 0, mouseY = 0;
+let frameCount = 0;
+
+function resizeCanvas() {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width;
+  canvas.height = height;
+}
+
+window.addEventListener('resize', resizeCanvas);
+canvas.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; handleMouseMoved(); });
+canvas.addEventListener('mousedown', (e) => { mouseX = e.clientX; mouseY = e.clientY; handleMousePressed(); });
+
+// ─── State ───
 let triangles = [];
 const NUM_TRIANGLES = 18;
 let helloTriangleIndex;
 let blueArrowIndex;
 let qrTriangleIndex;
 
-// Color schemes — normal and inverted (Konami)
 const BLUE_GLASS = [70, 150, 220];
 const ORANGE_GLASS = [220, 130, 50];
 
-// Konami code state
-const KONAMI_SEQ = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65]; // up up down down left right left right b a
+// Konami
+const KONAMI_SEQ = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65];
 let konamiPos = 0;
 let inverted = false;
-let invertT = 0; // 0 = normal, 1 = fully inverted (smooth transition)
+let invertT = 0;
 
-// QR code state
+// QR
 let qrMatrix = null;
 let qrModuleCount = 0;
-let qrReveal = 0; // 0–1 animation
+let qrReveal = 0;
 let qrHovering = false;
 
-// Film grain
-let grainBuffer;
+// Grain
+let grainCanvas, grainCtx;
 let grainTick = 0;
 
-// Split-flap display
+// Split-flap
 const FLAP_TEXT = 'ZERO DASH ONE';
 const FLAP_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -';
 let flapSlots = [];
 let flapIntroTimer = 0;
 let flapSettled = false;
 
-// Origami animation state
+// Origami
 let origami = {
-  active: false,
-  timer: 0,
-  duration: 300,
-  shards: [],
-  foldLines: [],
-  centerX: 0,
-  centerY: 0
+  active: false, timer: 0, duration: 300,
+  shards: [], foldLines: [],
+  centerX: 0, centerY: 0
 };
 
-// Swarming arrows state
-let swarm = {
-  active: false,
-  arrows: [],
-  timer: 0,
-  settledOnEdges: false
-};
+// Swarm
+let swarm = { active: false, arrows: [], timer: 0, settledOnEdges: false };
 const SWARM_DURATION = 600;
 const SWARM_SETTLE_START = 360;
 const MIN_HELLO_SIZE = 60;
 
-// ─── Color helpers (lerp between normal/inverted) ───
+// ─── Konami listener ───
+window.addEventListener('keydown', (e) => {
+  if (e.keyCode === KONAMI_SEQ[konamiPos]) {
+    konamiPos++;
+    if (konamiPos >= KONAMI_SEQ.length) {
+      inverted = !inverted;
+      konamiPos = 0;
+    }
+  } else {
+    konamiPos = (e.keyCode === KONAMI_SEQ[0]) ? 1 : 0;
+  }
+});
 
+// ─── Color helpers ───
 function bgColor() {
-  return lerpColor(color(0), color(245), invertT);
+  const v = lerp(0, 245, invertT);
+  return [v, v, v];
 }
 
-function fgColor(a) {
-  // foreground stroke/text color
-  let r = lerp(255, 15, invertT);
-  return color(r, a !== undefined ? a : 255);
+function fgColorVal() {
+  return lerp(255, 15, invertT);
 }
 
 function accentColor() {
-  // blue glass in normal, orange glass in inverted
   return [
     lerp(BLUE_GLASS[0], ORANGE_GLASS[0], invertT),
     lerp(BLUE_GLASS[1], ORANGE_GLASS[1], invertT),
@@ -74,18 +165,22 @@ function accentColor() {
   ];
 }
 
+function rgba(r, g, b, a) {
+  if (g === undefined) return `rgba(${floor(r)},${floor(r)},${floor(r)},${(a !== undefined ? a : 255) / 255})`;
+  return `rgba(${floor(r)},${floor(g)},${floor(b)},${(a !== undefined ? a : 255) / 255})`;
+}
+
 // ─── Setup ───
-
 function setup() {
-  createCanvas(windowWidth, windowHeight);
-  textAlign(CENTER, CENTER);
-  textFont('Helvetica');
+  resizeCanvas();
 
-  // Generate QR matrix
   buildQR('mailto:doyle@doylecentral.com');
 
-  // Grain buffer (small, tiled)
-  grainBuffer = createGraphics(128, 128);
+  // Grain buffer
+  grainCanvas = document.createElement('canvas');
+  grainCanvas.width = 128;
+  grainCanvas.height = 128;
+  grainCtx = grainCanvas.getContext('2d');
   refreshGrain();
 
   for (let i = 0; i < NUM_TRIANGLES; i++) {
@@ -108,8 +203,7 @@ function setup() {
   pickSpecialTriangles();
   initSplitFlap();
 
-  let c = document.querySelector('canvas');
-  if (c) c.classList.add('loaded');
+  canvas.classList.add('loaded');
 }
 
 function initSplitFlap() {
@@ -122,16 +216,15 @@ function initSplitFlap() {
       target: target,
       current: FLAP_CHARS[floor(random(FLAP_CHARS.length))],
       settled: false,
-      settleDelay: 60 + i * 12, // stagger left to right
+      settleDelay: 60 + i * 12,
       flipTimer: 0,
-      flipInterval: floor(random(3, 6)), // frames between flips
-      flipPhase: 0 // 0–1 visual flip animation
+      flipInterval: floor(random(3, 6)),
+      flipPhase: 0
     });
   }
 }
 
 // ─── QR generation ───
-
 function buildQR(data) {
   if (typeof qrcode === 'undefined') return;
   let qr = qrcode(0, 'M');
@@ -150,29 +243,41 @@ function buildQR(data) {
 function drawQRAtTriangle(t) {
   if (!qrMatrix || qrReveal <= 0.01) return;
 
-  // Minimum 160px so QR is always scannable
   let qrSize = max(160, t.size * 2.2);
   let moduleSize = qrSize / qrModuleCount;
   let ox = t.x - qrSize / 2;
   let oy = t.y - qrSize / 2;
-
   let acc = accentColor();
 
-  push();
-  // Background plate with slight transparency
-  noStroke();
+  ctx.save();
+
+  // Background plate
   let plateAlpha = qrReveal * 200;
   if (inverted) {
-    fill(245, plateAlpha);
+    ctx.fillStyle = rgba(245, 245, 245, plateAlpha);
   } else {
-    fill(0, plateAlpha);
+    ctx.fillStyle = rgba(0, 0, 0, plateAlpha);
   }
-  rectMode(CENTER);
-  rect(t.x, t.y, qrSize + 16, qrSize + 16, 4);
+  // Rounded rect centered on t.x, t.y
+  let pw = qrSize + 16, ph = qrSize + 16;
+  let pr = 4;
+  let px = t.x - pw / 2, py = t.y - ph / 2;
+  ctx.beginPath();
+  ctx.moveTo(px + pr, py);
+  ctx.lineTo(px + pw - pr, py);
+  ctx.quadraticCurveTo(px + pw, py, px + pw, py + pr);
+  ctx.lineTo(px + pw, py + ph - pr);
+  ctx.quadraticCurveTo(px + pw, py + ph, px + pw - pr, py + ph);
+  ctx.lineTo(px + pr, py + ph);
+  ctx.quadraticCurveTo(px, py + ph, px, py + ph - pr);
+  ctx.lineTo(px, py + pr);
+  ctx.quadraticCurveTo(px, py, px + pr, py);
+  ctx.closePath();
+  ctx.fill();
 
-  // Draw QR modules with staggered reveal
+  // QR modules
   let totalModules = qrModuleCount * qrModuleCount;
-  let revealedCount = floor(qrReveal * totalModules * 1.3); // overshoot so it fills
+  let revealedCount = floor(qrReveal * totalModules * 1.3);
 
   let idx = 0;
   for (let r = 0; r < qrModuleCount; r++) {
@@ -180,17 +285,15 @@ function drawQRAtTriangle(t) {
       if (qrMatrix[r][c] && idx < revealedCount) {
         let mx = ox + c * moduleSize;
         let my = oy + r * moduleSize;
-
-        // Accent color for finder patterns, fg color for data
         let isFinder = (r < 7 && c < 7) || (r < 7 && c >= qrModuleCount - 7) || (r >= qrModuleCount - 7 && c < 7);
         if (isFinder) {
-          fill(acc[0], acc[1], acc[2], qrReveal * 255);
+          ctx.fillStyle = rgba(acc[0], acc[1], acc[2], qrReveal * 255);
         } else {
           let fg = inverted ? 15 : 255;
-          fill(fg, qrReveal * 220);
+          ctx.fillStyle = rgba(fg, fg, fg, qrReveal * 220);
         }
-        noStroke();
-        rect(mx + moduleSize / 2, my + moduleSize / 2, moduleSize * 0.9, moduleSize * 0.9);
+        let ms = moduleSize * 0.9;
+        ctx.fillRect(mx + (moduleSize - ms) / 2, my + (moduleSize - ms) / 2, ms, ms);
       }
       idx++;
     }
@@ -199,126 +302,92 @@ function drawQRAtTriangle(t) {
   // Scan label
   let labelAlpha = constrain((qrReveal - 0.6) / 0.4, 0, 1) * 180;
   if (labelAlpha > 0) {
-    fill(acc[0], acc[1], acc[2], labelAlpha);
-    noStroke();
-    textSize(constrain(qrSize * 0.08, 10, 16));
-    textAlign(CENTER, CENTER);
-    text('scan me', t.x, t.y + qrSize / 2 + 14);
+    let ts = constrain(qrSize * 0.08, 10, 16);
+    ctx.fillStyle = rgba(acc[0], acc[1], acc[2], labelAlpha);
+    ctx.font = `${ts}px Helvetica`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('scan me', t.x, t.y + qrSize / 2 + 14);
   }
 
-  pop();
+  ctx.restore();
 }
 
-// ─── QR Icon (drawn with p5 primitives) ───
-
+// ─── QR Icon ───
 function drawQRIcon(triSize) {
-  let s = constrain(triSize * 0.4, 16, 42); // icon size
-  let u = s / 7; // unit size (7x7 grid)
-  let fg = lerp(255, 15, invertT);
+  let s = constrain(triSize * 0.4, 16, 42);
+  let u = s / 7;
+  let fg = fgColorVal();
   let acc = accentColor();
   let half = s / 2;
-
-  // Slight transparency
   let a = 160;
 
-  // Draw finder pattern (outer square + inner square)
-  function finderPattern(ox, oy) {
+  function finderPattern(fpx, fpy) {
     // Outer ring
-    noFill();
-    stroke(acc[0], acc[1], acc[2], a);
-    strokeWeight(constrain(u * 0.35, 0.5, 1.5));
-    rect(ox, oy, u * 3, u * 3);
+    ctx.strokeStyle = rgba(acc[0], acc[1], acc[2], a);
+    ctx.lineWidth = constrain(u * 0.35, 0.5, 1.5);
+    ctx.strokeRect(fpx, fpy, u * 3, u * 3);
     // Inner dot
-    noStroke();
-    fill(acc[0], acc[1], acc[2], a);
-    rect(ox + u, oy + u, u, u);
+    ctx.fillStyle = rgba(acc[0], acc[1], acc[2], a);
+    ctx.fillRect(fpx + u, fpy + u, u, u);
   }
 
-  rectMode(CORNER);
-
-  // Three finder patterns (top-left, top-right, bottom-left)
   finderPattern(-half, -half);
   finderPattern(-half + u * 4, -half);
   finderPattern(-half, -half + u * 4);
 
-  // Data dots — scattered small squares in remaining area
-  noStroke();
-  fill(fg, a * 0.7);
+  // Data dots
+  ctx.fillStyle = rgba(fg, fg, fg, a * 0.7);
   let dotSize = u * 0.8;
+  ctx.fillRect(-half + u * 4.5, -half + u * 4.5, dotSize, dotSize);
+  ctx.fillRect(-half + u * 5.5, -half + u * 5, dotSize, dotSize);
+  ctx.fillRect(-half + u * 4, -half + u * 6, dotSize, dotSize);
+  ctx.fillRect(-half + u * 5.5, -half + u * 6, dotSize, dotSize);
 
-  // Bottom-right quadrant dots
-  rect(-half + u * 4.5, -half + u * 4.5, dotSize, dotSize);
-  rect(-half + u * 5.5, -half + u * 5, dotSize, dotSize);
-  rect(-half + u * 4, -half + u * 6, dotSize, dotSize);
-  rect(-half + u * 5.5, -half + u * 6, dotSize, dotSize);
+  ctx.fillRect(-half + u * 3.5, -half + u * 1, dotSize, dotSize);
+  ctx.fillRect(-half + u * 3.5, -half + u * 2.5, dotSize, dotSize);
+  ctx.fillRect(-half + u * 1.5, -half + u * 3.5, dotSize, dotSize);
+  ctx.fillRect(-half + u * 3, -half + u * 3.5, dotSize, dotSize);
 
-  // Middle column/row dots
-  rect(-half + u * 3.5, -half + u * 1, dotSize, dotSize);
-  rect(-half + u * 3.5, -half + u * 2.5, dotSize, dotSize);
-  rect(-half + u * 1.5, -half + u * 3.5, dotSize, dotSize);
-  rect(-half + u * 3, -half + u * 3.5, dotSize, dotSize);
-
-  // Right edge dots
-  rect(-half + u * 5, -half + u * 2, dotSize, dotSize);
-  rect(-half + u * 6, -half + u * 3, dotSize, dotSize);
-
-  rectMode(CENTER); // restore default
+  ctx.fillRect(-half + u * 5, -half + u * 2, dotSize, dotSize);
+  ctx.fillRect(-half + u * 6, -half + u * 3, dotSize, dotSize);
 }
 
 // ─── Grain ───
-
 function refreshGrain() {
-  grainBuffer.loadPixels();
-  for (let i = 0; i < grainBuffer.pixels.length; i += 4) {
-    let v = random(255);
-    grainBuffer.pixels[i] = v;
-    grainBuffer.pixels[i + 1] = v;
-    grainBuffer.pixels[i + 2] = v;
-    grainBuffer.pixels[i + 3] = 255;
+  let imgData = grainCtx.createImageData(128, 128);
+  let d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    let v = floor(random(256));
+    d[i] = v;
+    d[i + 1] = v;
+    d[i + 2] = v;
+    d[i + 3] = 255;
   }
-  grainBuffer.updatePixels();
+  grainCtx.putImageData(imgData, 0, 0);
 }
 
 function drawGrain() {
-  // Refresh grain texture every 4 frames for animated look
   grainTick++;
   if (grainTick % 4 === 0) refreshGrain();
 
-  push();
-  drawingContext.globalAlpha = inverted ? 0.03 : 0.045;
-  drawingContext.globalCompositeOperation = inverted ? 'multiply' : 'screen';
+  ctx.save();
+  ctx.globalAlpha = inverted ? 0.03 : 0.045;
+  ctx.globalCompositeOperation = inverted ? 'multiply' : 'screen';
 
-  // Tile the small grain buffer across the canvas
   for (let x = 0; x < width; x += 128) {
     for (let y = 0; y < height; y += 128) {
-      image(grainBuffer, x, y);
+      ctx.drawImage(grainCanvas, x, y);
     }
   }
 
-  drawingContext.globalAlpha = 1.0;
-  drawingContext.globalCompositeOperation = 'source-over';
-  pop();
-}
-
-// ─── Konami code ───
-
-function keyPressed() {
-  if (keyCode === KONAMI_SEQ[konamiPos]) {
-    konamiPos++;
-    if (konamiPos >= KONAMI_SEQ.length) {
-      inverted = !inverted;
-      konamiPos = 0;
-    }
-  } else {
-    // Allow partial restart if first key matches
-    konamiPos = (keyCode === KONAMI_SEQ[0]) ? 1 : 0;
-  }
+  ctx.globalAlpha = 1.0;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
 }
 
 // ─── Triangle picking ───
-
 function pickSpecialTriangles() {
-  // Hello triangle — foreground, large enough
   let candidates = [];
   for (let i = 0; i < 12; i++) {
     if (triangles[i].size >= MIN_HELLO_SIZE) candidates.push(i);
@@ -328,12 +397,10 @@ function pickSpecialTriangles() {
   }
   helloTriangleIndex = candidates[floor(random(candidates.length))];
 
-  // Blue arrow triangle
   do {
     blueArrowIndex = floor(random(0, 12));
   } while (blueArrowIndex === helloTriangleIndex);
 
-  // QR triangle — different from hello and blue, prefer medium-large
   let qrCandidates = [];
   for (let i = 0; i < 12; i++) {
     if (i !== helloTriangleIndex && i !== blueArrowIndex && triangles[i].size >= 50) {
@@ -349,7 +416,6 @@ function pickSpecialTriangles() {
 }
 
 // ─── Swarm ───
-
 function spawnSwarm(cx, cy) {
   swarm.active = true;
   swarm.timer = 0;
@@ -378,30 +444,20 @@ function spawnSwarm(cx, cy) {
       let edge = floor(random(4));
       let targetX, targetY, targetAngle;
       switch (edge) {
-        case 0:
-          targetX = random(width); targetY = 0; targetAngle = HALF_PI; break;
-        case 1:
-          targetX = width; targetY = random(height); targetAngle = PI; break;
-        case 2:
-          targetX = random(width); targetY = height; targetAngle = -HALF_PI; break;
-        case 3:
-          targetX = 0; targetY = random(height); targetAngle = 0; break;
+        case 0: targetX = random(width); targetY = 0; targetAngle = HALF_PI; break;
+        case 1: targetX = width; targetY = random(height); targetAngle = PI; break;
+        case 2: targetX = random(width); targetY = height; targetAngle = -HALF_PI; break;
+        case 3: targetX = 0; targetY = random(height); targetAngle = 0; break;
       }
 
       swarm.arrows.push({
-        x: worldX,
-        y: worldY,
-        angle: edgeAngle,
-        size: t.size,
-        sw: t.sw,
-        isBlue: isBlue,
+        x: worldX, y: worldY, angle: edgeAngle,
+        size: t.size, sw: t.sw, isBlue: isBlue,
         alpha: isBlue ? 180 : lerp(t.alpha, 255, t.flashTimer),
         vx: (worldX - cx) * 0.05 + random(-4, 4),
         vy: (worldY - cy) * 0.05 + random(-4, 4),
         rotSpeed: random(-0.15, 0.15),
-        targetX: targetX,
-        targetY: targetY,
-        targetAngle: targetAngle,
+        targetX: targetX, targetY: targetY, targetAngle: targetAngle,
         settled: false
       });
     }
@@ -413,32 +469,35 @@ function drawSwarmArrow(a) {
   let arrowWidth = a.size * 0.12;
   let acc = accentColor();
 
-  push();
-  translate(a.x, a.y);
-  rotate(a.angle);
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.rotate(a.angle);
+
+  ctx.lineWidth = a.sw * 0.8;
 
   if (a.isBlue) {
-    fill(acc[0], acc[1], acc[2], a.alpha * 0.3);
-    stroke(acc[0], acc[1], acc[2], a.alpha);
-    drawingContext.shadowColor = `rgba(${floor(acc[0])}, ${floor(acc[1])}, ${floor(acc[2])}, 0.4)`;
-    drawingContext.shadowBlur = 8;
+    ctx.fillStyle = rgba(acc[0], acc[1], acc[2], a.alpha * 0.3);
+    ctx.strokeStyle = rgba(acc[0], acc[1], acc[2], a.alpha);
+    ctx.shadowColor = `rgba(${floor(acc[0])},${floor(acc[1])},${floor(acc[2])},0.4)`;
+    ctx.shadowBlur = 8;
   } else {
-    noFill();
-    let fg = lerp(255, 15, invertT);
-    stroke(fg, a.alpha);
-    drawingContext.shadowBlur = 0;
+    ctx.fillStyle = 'transparent';
+    let fg = fgColorVal();
+    ctx.strokeStyle = rgba(fg, fg, fg, a.alpha);
+    ctx.shadowBlur = 0;
   }
-  strokeWeight(a.sw * 0.8);
 
-  beginShape();
-  vertex(arrowLen, 0);
-  vertex(-arrowLen * 0.4, -arrowWidth);
-  vertex(-arrowLen * 0.1, 0);
-  vertex(-arrowLen * 0.4, arrowWidth);
-  endShape(CLOSE);
+  ctx.beginPath();
+  ctx.moveTo(arrowLen, 0);
+  ctx.lineTo(-arrowLen * 0.4, -arrowWidth);
+  ctx.lineTo(-arrowLen * 0.1, 0);
+  ctx.lineTo(-arrowLen * 0.4, arrowWidth);
+  ctx.closePath();
+  if (a.isBlue) ctx.fill();
+  ctx.stroke();
 
-  drawingContext.shadowBlur = 0;
-  pop();
+  ctx.shadowBlur = 0;
+  ctx.restore();
 }
 
 function updateSwarm() {
@@ -507,24 +566,25 @@ function drawArrowhead(x, y, angle, size, isBlue) {
   let arrowWidth = size * 0.12;
   let acc = accentColor();
 
-  push();
-  translate(x, y);
-  rotate(angle);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  ctx.beginPath();
+  ctx.moveTo(arrowLen, 0);
+  ctx.lineTo(-arrowLen * 0.4, -arrowWidth);
+  ctx.lineTo(-arrowLen * 0.1, 0);
+  ctx.lineTo(-arrowLen * 0.4, arrowWidth);
+  ctx.closePath();
 
   if (isBlue) {
-    fill(acc[0], acc[1], acc[2], 50);
-    stroke(acc[0], acc[1], acc[2]);
-  } else {
-    noFill();
+    ctx.fillStyle = rgba(acc[0], acc[1], acc[2], 50);
+    ctx.strokeStyle = rgba(acc[0], acc[1], acc[2], 255);
+    ctx.fill();
   }
+  ctx.stroke();
 
-  beginShape();
-  vertex(arrowLen, 0);
-  vertex(-arrowLen * 0.4, -arrowWidth);
-  vertex(-arrowLen * 0.1, 0);
-  vertex(-arrowLen * 0.4, arrowWidth);
-  endShape(CLOSE);
-  pop();
+  ctx.restore();
 }
 
 function drawTriangleWithArrows(t, currentAlpha, isBlue) {
@@ -536,29 +596,36 @@ function drawTriangleWithArrows(t, currentAlpha, isBlue) {
 
   let acc = accentColor();
 
-  push();
-  translate(t.x, t.y);
-  rotate(t.angle);
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  ctx.rotate(t.angle);
+
+  ctx.lineWidth = t.sw;
 
   if (isBlue) {
-    fill(acc[0], acc[1], acc[2], 15);
-    stroke(acc[0], acc[1], acc[2], currentAlpha);
-    drawingContext.shadowColor = `rgba(${floor(acc[0])}, ${floor(acc[1])}, ${floor(acc[2])}, 0.3)`;
-    drawingContext.shadowBlur = 12;
+    ctx.fillStyle = rgba(acc[0], acc[1], acc[2], 15);
+    ctx.strokeStyle = rgba(acc[0], acc[1], acc[2], currentAlpha);
+    ctx.shadowColor = `rgba(${floor(acc[0])},${floor(acc[1])},${floor(acc[2])},0.3)`;
+    ctx.shadowBlur = 12;
   } else {
-    noFill();
-    let fg = lerp(255, 15, invertT);
-    stroke(fg, currentAlpha);
-    drawingContext.shadowBlur = 0;
+    ctx.fillStyle = 'transparent';
+    let fg = fgColorVal();
+    ctx.strokeStyle = rgba(fg, fg, fg, currentAlpha);
+    ctx.shadowBlur = 0;
   }
-  strokeWeight(t.sw);
 
-  beginShape();
-  for (let v of verts) vertex(v.x, v.y);
-  endShape(CLOSE);
+  // Draw triangle
+  ctx.beginPath();
+  ctx.moveTo(verts[0].x, verts[0].y);
+  ctx.lineTo(verts[1].x, verts[1].y);
+  ctx.lineTo(verts[2].x, verts[2].y);
+  ctx.closePath();
+  if (isBlue) ctx.fill();
+  ctx.stroke();
 
-  drawingContext.shadowBlur = 0;
+  ctx.shadowBlur = 0;
 
+  // Arrowheads on vertices
   if (!swarm.active) {
     for (let j = 0; j < 3; j++) {
       let v = verts[j];
@@ -566,18 +633,17 @@ function drawTriangleWithArrows(t, currentAlpha, isBlue) {
       let edgeAngle = atan2(next.y - v.y, next.x - v.x);
 
       if (isBlue) {
-        stroke(acc[0], acc[1], acc[2], currentAlpha);
-        strokeWeight(t.sw * 0.8);
+        ctx.strokeStyle = rgba(acc[0], acc[1], acc[2], currentAlpha);
       } else {
-        let fg = lerp(255, 15, invertT);
-        stroke(fg, currentAlpha);
-        strokeWeight(t.sw * 0.8);
+        let fg = fgColorVal();
+        ctx.strokeStyle = rgba(fg, fg, fg, currentAlpha);
       }
+      ctx.lineWidth = t.sw * 0.8;
       drawArrowhead(v.x, v.y, edgeAngle, t.size, isBlue);
     }
   }
 
-  pop();
+  ctx.restore();
 }
 
 // ─── Origami ───
@@ -600,17 +666,12 @@ function spawnOrigami(cx, cy) {
       let a = (TWO_PI / numInRing) * j + ring * 0.3;
       let shardSize = random(15, 40 + ring * 10);
       origami.shards.push({
-        angle: a,
-        radius: baseRadius,
-        size: shardSize,
-        rotation: random(TWO_PI),
-        rotSpeed: random(-0.04, 0.04),
-        foldAngle: PI,
-        targetFold: random(-0.3, 0.3),
+        angle: a, radius: baseRadius, size: shardSize,
+        rotation: random(TWO_PI), rotSpeed: random(-0.04, 0.04),
+        foldAngle: PI, targetFold: random(-0.3, 0.3),
         foldSpeed: random(0.02, 0.06),
         delay: ring * 12 + random(8),
-        alpha: 0,
-        maxAlpha: random(100, 255),
+        alpha: 0, maxAlpha: random(100, 255),
         fillAlpha: random(0, 40),
         mirror: random() > 0.5
       });
@@ -621,10 +682,8 @@ function spawnOrigami(cx, cy) {
   for (let i = 0; i < numLines; i++) {
     let a = (TWO_PI / numLines) * i + random(-0.2, 0.2);
     origami.foldLines.push({
-      angle: a,
-      length: random(150, 400),
-      delay: random(10),
-      alpha: 0
+      angle: a, length: random(150, 400),
+      delay: random(10), alpha: 0
     });
   }
 
@@ -649,7 +708,7 @@ function drawOrigami() {
   let collapsePhase = progress > 0.7 ? (progress - 0.7) / 0.3 : 0;
   let globalAlphaMult = collapsePhase > 0 ? 1 - easeInQuad(collapsePhase) : 1;
 
-  let fg = lerp(255, 15, invertT);
+  let fg = fgColorVal();
 
   // Fold lines
   for (let fl of origami.foldLines) {
@@ -658,25 +717,33 @@ function drawOrigami() {
     fl.alpha = lerp(fl.alpha, 200 * globalAlphaMult, 0.1);
 
     let len = fl.length * easeOutQuad(lineProgress);
-    stroke(fg, fl.alpha);
-    strokeWeight(1);
-    let x1 = cx;
-    let y1 = cy;
+    let x1 = cx, y1 = cy;
     let x2 = cx + cos(fl.angle) * len;
     let y2 = cy + sin(fl.angle) * len;
-    line(x1, y1, x2, y2);
+
+    ctx.strokeStyle = rgba(fg, fg, fg, fl.alpha);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
 
     if (lineProgress > 0.3) {
-      push();
-      translate(x2, y2);
-      rotate(fl.angle);
-      noFill();
-      stroke(fg, fl.alpha);
-      strokeWeight(1.2);
+      ctx.save();
+      ctx.translate(x2, y2);
+      ctx.rotate(fl.angle);
+      ctx.strokeStyle = rgba(fg, fg, fg, fl.alpha);
+      ctx.lineWidth = 1.2;
       let aLen = 10;
-      line(0, 0, -aLen, -aLen * 0.5);
-      line(0, 0, -aLen, aLen * 0.5);
-      pop();
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-aLen, -aLen * 0.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-aLen, aLen * 0.5);
+      ctx.stroke();
+      ctx.restore();
     }
 
     if (lineProgress > 0.5) {
@@ -687,9 +754,12 @@ function drawOrigami() {
         let ty = lerp(y1, y2, frac);
         let perp = fl.angle + HALF_PI;
         let tickLen = 6;
-        stroke(fg, fl.alpha * 0.5);
-        line(tx - cos(perp) * tickLen, ty - sin(perp) * tickLen,
-             tx + cos(perp) * tickLen, ty + sin(perp) * tickLen);
+        ctx.strokeStyle = rgba(fg, fg, fg, fl.alpha * 0.5);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tx - cos(perp) * tickLen, ty - sin(perp) * tickLen);
+        ctx.lineTo(tx + cos(perp) * tickLen, ty + sin(perp) * tickLen);
+        ctx.stroke();
       }
     }
   }
@@ -717,39 +787,47 @@ function drawOrigami() {
     let sx = cx + cos(s.angle) * expandedRadius;
     let sy = cy + sin(s.angle) * expandedRadius;
 
-    push();
-    translate(sx, sy);
-    rotate(s.rotation);
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(s.rotation);
 
     let foldScale = cos(s.foldAngle);
-    scale(1, foldScale);
+    ctx.scale(1, foldScale);
 
-    stroke(fg, s.alpha);
-    strokeWeight(1.2);
-    fill(fg, s.fillAlpha * globalAlphaMult);
-    beginShape();
-    vertex(0, -s.size * 0.6);
-    vertex(-s.size * 0.5, s.size * 0.4);
-    vertex(s.size * 0.5, s.size * 0.4);
-    endShape(CLOSE);
+    ctx.strokeStyle = rgba(fg, fg, fg, s.alpha);
+    ctx.lineWidth = 1.2;
+    ctx.fillStyle = rgba(fg, fg, fg, s.fillAlpha * globalAlphaMult);
 
-    stroke(fg, s.alpha * 0.4);
-    strokeWeight(0.5);
+    ctx.beginPath();
+    ctx.moveTo(0, -s.size * 0.6);
+    ctx.lineTo(-s.size * 0.5, s.size * 0.4);
+    ctx.lineTo(s.size * 0.5, s.size * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = rgba(fg, fg, fg, s.alpha * 0.4);
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
     if (s.mirror) {
-      line(0, -s.size * 0.6, -s.size * 0.25, s.size * 0.4);
+      ctx.moveTo(0, -s.size * 0.6);
+      ctx.lineTo(-s.size * 0.25, s.size * 0.4);
     } else {
-      line(0, -s.size * 0.6, s.size * 0.25, s.size * 0.4);
+      ctx.moveTo(0, -s.size * 0.6);
+      ctx.lineTo(s.size * 0.25, s.size * 0.4);
     }
+    ctx.stroke();
 
-    pop();
+    ctx.restore();
   }
 
   // Central flash
   if (t < 30) {
     let flashAlpha = (1 - t / 30) * 200;
-    noStroke();
-    fill(fg, flashAlpha);
-    ellipse(cx, cy, t * 4, t * 4);
+    ctx.fillStyle = rgba(fg, fg, fg, flashAlpha);
+    ctx.beginPath();
+    ctx.arc(cx, cy, t * 2, 0, TWO_PI);
+    ctx.fill();
   }
 
   // End origami
@@ -772,50 +850,41 @@ function drawOrigami() {
 function updateAndDrawSplitFlap() {
   flapIntroTimer++;
 
-  let fg = lerp(255, 15, invertT);
+  let fg = fgColorVal();
   let bgVal = lerp(20, 230, invertT);
   let cardBg = lerp(30, 215, invertT);
   let dividerColor = lerp(10, 235, invertT);
 
-  // Responsive sizing
   let fontSize = constrain(min(width, height) * 0.045, 18, 42);
   let cardW = fontSize * 0.75;
   let cardH = fontSize * 1.3;
   let gap = fontSize * 0.12;
   let totalW = flapSlots.length * (cardW + gap) - gap;
 
-  // Position: upper right with padding
   let baseX = width - totalW - 30;
   let baseY = 40;
 
   let allSettled = true;
 
-  push();
-  textFont('Courier New');
-  textAlign(CENTER, CENTER);
-  textSize(fontSize);
-  rectMode(CENTER);
+  ctx.save();
 
   for (let i = 0; i < flapSlots.length; i++) {
     let slot = flapSlots[i];
-    let cx = baseX + i * (cardW + gap) + cardW / 2;
-    let cy = baseY + cardH / 2;
+    let slotCx = baseX + i * (cardW + gap) + cardW / 2;
+    let slotCy = baseY + cardH / 2;
 
     // Update flip logic
     if (!slot.settled) {
       allSettled = false;
       if (flapIntroTimer >= slot.settleDelay) {
-        // Time to settle — land on target
         slot.current = slot.target;
         slot.settled = true;
-        slot.flipPhase = 1.0; // trigger final flip
+        slot.flipPhase = 1.0;
       } else {
-        // Still flipping through random chars
         slot.flipTimer++;
         if (slot.flipTimer >= slot.flipInterval) {
           slot.flipTimer = 0;
-          slot.flipPhase = 1.0; // trigger flip animation
-          // Pick a new random char (avoid repeating)
+          slot.flipPhase = 1.0;
           let next;
           do {
             next = FLAP_CHARS[floor(random(FLAP_CHARS.length))];
@@ -825,112 +894,129 @@ function updateAndDrawSplitFlap() {
       }
     }
 
-    // Decay flip phase
     if (slot.flipPhase > 0) {
       slot.flipPhase *= 0.82;
       if (slot.flipPhase < 0.01) slot.flipPhase = 0;
     }
 
-    // Draw card background
-    noStroke();
-    fill(cardBg, slot.current === ' ' ? 100 : 220);
-    rect(cx, cy, cardW, cardH, 2);
+    // Card background (rounded rect)
+    ctx.fillStyle = rgba(cardBg, cardBg, cardBg, slot.current === ' ' ? 100 : 220);
+    let rx = slotCx - cardW / 2, ry = slotCy - cardH / 2;
+    roundRect(rx, ry, cardW, cardH, 2);
+    ctx.fill();
 
-    // Draw the character with flip effect
+    // Character with flip
     let flipScale = 1 - slot.flipPhase * 0.3;
     let flipAlpha = slot.settled ? 255 : lerp(180, 255, 1 - slot.flipPhase);
 
-    push();
-    translate(cx, cy);
-    scale(1, flipScale);
+    ctx.save();
+    ctx.translate(slotCx, slotCy);
+    ctx.scale(1, flipScale);
 
-    // Character
-    fill(fg, flipAlpha);
-    noStroke();
-    text(slot.current, 0, 0);
-    pop();
+    ctx.fillStyle = rgba(fg, fg, fg, flipAlpha);
+    ctx.font = `${fontSize}px "Courier New"`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(slot.current, 0, 0);
+    ctx.restore();
 
-    // Center divider line (the split)
-    stroke(dividerColor, 150);
-    strokeWeight(1);
-    line(cx - cardW / 2, cy, cx + cardW / 2, cy);
+    // Center divider
+    ctx.strokeStyle = rgba(dividerColor, dividerColor, dividerColor, 150);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(slotCx - cardW / 2, slotCy);
+    ctx.lineTo(slotCx + cardW / 2, slotCy);
+    ctx.stroke();
 
     // Subtle top highlight
-    noStroke();
-    fill(fg, 8);
-    rect(cx, cy - cardH / 4, cardW, cardH / 2, 2, 2, 0, 0);
+    ctx.fillStyle = rgba(fg, fg, fg, 8);
+    roundRect(slotCx - cardW / 2, slotCy - cardH / 2, cardW, cardH / 2, 2, 2, 0, 0);
+    ctx.fill();
   }
 
-  // Once all settled, add subtle pulsing glow behind the whole display
+  // Pulsing glow
   if (allSettled && !flapSettled) flapSettled = true;
 
   if (flapSettled) {
     let pulse = sin(frameCount * 0.02) * 0.5 + 0.5;
     let glowAlpha = lerp(5, 20, pulse);
 
-    noStroke();
-    fill(fg, glowAlpha);
-    textSize(fontSize);
-    textFont('Courier New');
-    textAlign(CENTER, CENTER);
+    ctx.font = `${fontSize}px "Courier New"`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
     for (let i = 0; i < flapSlots.length; i++) {
-      let cx = baseX + i * (cardW + gap) + cardW / 2;
-      let cy = baseY + cardH / 2;
-      // Glow behind each character
+      let slotCx = baseX + i * (cardW + gap) + cardW / 2;
+      let slotCy = baseY + cardH / 2;
       for (let r = 3; r >= 1; r--) {
-        fill(fg, glowAlpha * (1 / r));
-        text(flapSlots[i].current, cx, cy);
+        ctx.fillStyle = rgba(fg, fg, fg, glowAlpha * (1 / r));
+        ctx.fillText(flapSlots[i].current, slotCx, slotCy);
       }
     }
   }
 
-  pop();
+  ctx.restore();
 }
 
-// ─── Guide arrows (point toward QR triangle) ───
+// Helper: rounded rect path
+function roundRect(x, y, w, h, rtl, rtr, rbr, rbl) {
+  if (rtr === undefined) { rtr = rtl; rbr = rtl; rbl = rtl; }
+  if (rbr === undefined) { rbr = 0; rbl = 0; }
+  ctx.beginPath();
+  ctx.moveTo(x + rtl, y);
+  ctx.lineTo(x + w - rtr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rtr);
+  ctx.lineTo(x + w, y + h - rbr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rbr, y + h);
+  ctx.lineTo(x + rbl, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rbl);
+  ctx.lineTo(x, y + rtl);
+  ctx.quadraticCurveTo(x, y, x + rtl, y);
+  ctx.closePath();
+}
+
+// ─── Guide arrows ───
 
 function drawGuideArrows(tx, ty, triSize, alphaMultiplier) {
   let acc = accentColor();
   let numArrows = 3;
   let orbitRadius = max(triSize * 2, 100);
   let pulse = sin(frameCount * 0.04) * 0.5 + 0.5;
-  let breathe = sin(frameCount * 0.025) * 12; // arrows drift in/out
+  let breathe = sin(frameCount * 0.025) * 12;
 
   for (let i = 0; i < numArrows; i++) {
-    // Spread arrows evenly, slowly orbit
     let baseAngle = (TWO_PI / numArrows) * i + frameCount * 0.005;
     let r = orbitRadius + breathe;
     let ax = tx + cos(baseAngle) * r;
     let ay = ty + sin(baseAngle) * r;
 
-    // Arrow points inward toward triangle center
     let pointAngle = atan2(ty - ay, tx - ax);
 
     let arrowAlpha = lerp(60, 180, pulse) * alphaMultiplier;
     let arrowLen = max(triSize * 0.25, 14);
     let arrowWidth = max(triSize * 0.14, 8);
 
-    push();
-    translate(ax, ay);
-    rotate(pointAngle);
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(pointAngle);
 
-    // Accent-colored arrow with glow
-    fill(acc[0], acc[1], acc[2], arrowAlpha * 0.25);
-    stroke(acc[0], acc[1], acc[2], arrowAlpha);
-    strokeWeight(1);
-    drawingContext.shadowColor = `rgba(${floor(acc[0])}, ${floor(acc[1])}, ${floor(acc[2])}, ${(arrowAlpha / 255 * 0.4).toFixed(2)})`;
-    drawingContext.shadowBlur = 6;
+    ctx.fillStyle = rgba(acc[0], acc[1], acc[2], arrowAlpha * 0.25);
+    ctx.strokeStyle = rgba(acc[0], acc[1], acc[2], arrowAlpha);
+    ctx.lineWidth = 1;
+    ctx.shadowColor = `rgba(${floor(acc[0])},${floor(acc[1])},${floor(acc[2])},${(arrowAlpha / 255 * 0.4).toFixed(2)})`;
+    ctx.shadowBlur = 6;
 
-    beginShape();
-    vertex(arrowLen, 0);
-    vertex(-arrowLen * 0.3, -arrowWidth);
-    vertex(-arrowLen * 0.05, 0);
-    vertex(-arrowLen * 0.3, arrowWidth);
-    endShape(CLOSE);
+    ctx.beginPath();
+    ctx.moveTo(arrowLen, 0);
+    ctx.lineTo(-arrowLen * 0.3, -arrowWidth);
+    ctx.lineTo(-arrowLen * 0.05, 0);
+    ctx.lineTo(-arrowLen * 0.3, arrowWidth);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
 
-    drawingContext.shadowBlur = 0;
-    pop();
+    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 }
 
@@ -940,18 +1026,56 @@ function easeOutQuad(x) { return 1 - (1 - x) * (1 - x); }
 function easeInQuad(x) { return x * x; }
 function easeInOutCubic(x) { return x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2; }
 
+// ─── Interaction ───
+
+function handleMousePressed() {
+  if (origami.active || swarm.active) return;
+
+  let ht = triangles[helloTriangleIndex];
+  let dh = dist(mouseX, mouseY, ht.x, ht.y);
+  if (dh < ht.size) {
+    spawnOrigami(ht.x, ht.y);
+    return;
+  }
+}
+
+function handleMouseMoved() {
+  if (origami.active || swarm.active) return;
+
+  let ht = triangles[helloTriangleIndex];
+  let dh = dist(mouseX, mouseY, ht.x, ht.y);
+  if (dh < ht.size) {
+    document.body.style.cursor = 'pointer';
+    return;
+  }
+
+  if (qrTriangleIndex !== undefined) {
+    let qt = triangles[qrTriangleIndex];
+    let dq = dist(mouseX, mouseY, qt.x, qt.y);
+    if (dq < qt.size * 1.2) {
+      document.body.style.cursor = 'pointer';
+      return;
+    }
+  }
+
+  document.body.style.cursor = 'default';
+}
+
 // ─── Main draw loop ───
 
 function draw() {
+  frameCount++;
+
   // Smooth invert transition
   let targetInvert = inverted ? 1 : 0;
   invertT = lerp(invertT, targetInvert, 0.04);
 
-  // Background with trail fade
+  // Background with trail fade (semi-transparent fill for trails)
   let bg = bgColor();
-  background(red(bg), green(bg), blue(bg), 220);
+  ctx.fillStyle = rgba(bg[0], bg[1], bg[2], 220);
+  ctx.fillRect(0, 0, width, height);
 
-  // Film grain overlay
+  // Film grain
   drawGrain();
 
   // Occasional flash
@@ -1004,20 +1128,17 @@ function draw() {
     let isBlue = (i === blueArrowIndex);
     drawTriangleWithArrows(t, currentAlpha, isBlue);
 
-    // QR icon + hover reveal + guide arrows — all on qrTriangleIndex
+    // QR icon + hover + guide arrows
     if (i === qrTriangleIndex && !origami.active && !swarm.active) {
-      // QR icon inside the triangle (counter-rotate to stay upright)
-      push();
-      translate(t.x, t.y);
-      rotate(-t.angle);
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.rotate(-t.angle);
       drawQRIcon(t.size);
-      pop();
+      ctx.restore();
 
-      // Hover detection
       let d = dist(mouseX, mouseY, t.x, t.y);
       qrHovering = d < t.size * 1.2;
 
-      // Guide arrows pointing inward (fade out as QR reveals)
       let guideAlpha = (1 - qrReveal) * (flapSettled ? 1 : 0);
       if (guideAlpha > 0.01) {
         drawGuideArrows(t.x, t.y, t.size, guideAlpha);
@@ -1025,14 +1146,13 @@ function draw() {
     }
   }
 
-  // Animate QR reveal
+  // QR reveal animation
   if (qrHovering && qrReveal < 1) {
     qrReveal = min(1, qrReveal + 0.035);
   } else if (!qrHovering && qrReveal > 0) {
     qrReveal = max(0, qrReveal - 0.06);
   }
 
-  // Draw QR overlay on QR triangle
   if (qrReveal > 0.01 && qrTriangleIndex !== undefined) {
     drawQRAtTriangle(triangles[qrTriangleIndex]);
   }
@@ -1043,48 +1163,12 @@ function draw() {
   // Origami layer
   drawOrigami();
 
-  // Split-flap airport display — upper right
+  // Split-flap display
   updateAndDrawSplitFlap();
+
+  requestAnimationFrame(draw);
 }
 
-// ─── Interaction ───
-
-function mousePressed() {
-  if (origami.active || swarm.active) return;
-
-  // Hello triangle click → origami
-  let ht = triangles[helloTriangleIndex];
-  let dh = dist(mouseX, mouseY, ht.x, ht.y);
-  if (dh < ht.size) {
-    spawnOrigami(ht.x, ht.y);
-    return;
-  }
-
-  // QR triangle click — no link, scan only
-}
-
-function mouseMoved() {
-  if (origami.active || swarm.active) return;
-
-  let ht = triangles[helloTriangleIndex];
-  let dh = dist(mouseX, mouseY, ht.x, ht.y);
-  if (dh < ht.size) {
-    cursor(HAND);
-    return;
-  }
-
-  if (qrTriangleIndex !== undefined) {
-    let qt = triangles[qrTriangleIndex];
-    let dq = dist(mouseX, mouseY, qt.x, qt.y);
-    if (dq < qt.size * 1.2) {
-      cursor(HAND);
-      return;
-    }
-  }
-
-  cursor(ARROW);
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-}
+// ─── Boot ───
+setup();
+requestAnimationFrame(draw);
