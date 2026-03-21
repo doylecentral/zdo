@@ -7,6 +7,7 @@ async function build() {
   const src = fs.readFileSync(path.join(__dirname, 'src', 'sketch.js'), 'utf8');
   const qrSrc = fs.readFileSync(path.join(__dirname, 'public', 'qrcode.min.js'), 'utf8');
   const htmlTemplate = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
 
   // Step 1: Obfuscate sketch.js
   const obfuscated = JavaScriptObfuscator.obfuscate(src, {
@@ -38,6 +39,10 @@ async function build() {
 
   // Step 3: Build single HTML file with everything inlined
   let html = htmlTemplate;
+
+  // Inject version from package.json
+  html = html.replace(/<meta name="version" content="[^"]*">/, `<meta name="version" content="${pkg.version}">`);
+  html = html.replace('<!--BUILD_DATE-->', new Date().toISOString().split('T')[0]);
 
   // Remove external script tags
   html = html.replace(/<script src="\/qrcode\.min\.js"><\/script>\n?/, '');
