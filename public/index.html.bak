@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zero Dash One</title>
+  <meta name="description" content="Zero Dash One — creative technology studio">
+  <meta property="og:title" content="Zero Dash One">
+  <meta property="og:description" content="Creative technology studio">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Zero Dash One">
+  <meta name="twitter:description" content="Creative technology studio">
+  <meta name="version" content="1.0.0">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <script src="/qrcode.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; }
+    html, body {
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      cursor: default;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      opacity: 0;
+      transition: opacity 1.5s ease-in;
+    }
+    canvas.loaded {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <noscript>
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#fff;font-family:Helvetica,sans-serif;text-align:center;">
+      <div>
+        <svg viewBox="0 0 64 64" width="64" height="64" style="margin-bottom:1rem;">
+          <polygon points="32,8 56,56 8,56" fill="none" stroke="#fff" stroke-width="2"/>
+        </svg>
+        <h1 style="font-weight:300;letter-spacing:0.1em;">Zero Dash One</h1>
+        <p style="opacity:0.5;margin-top:0.5rem;">Enable JavaScript to experience this site.</p>
+      </div>
+    </div>
+  </noscript>
+  <script src="/sketch.js"></script>
+</body>
+</html>
