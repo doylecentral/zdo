@@ -66,6 +66,13 @@
       opacity: 0.5;
       margin: 0 6px;
     }
+    footer.contact .honeypot {
+      position: absolute;
+      left: -9999px;
+      top: -9999px;
+      opacity: 0;
+      pointer-events: none;
+    }
     @media (max-width: 600px) {
       footer.contact { font-size: 9px; bottom: 8px; line-height: 1.6; }
     }
@@ -86,18 +93,34 @@
   <footer class="contact" role="contentinfo">
     <div>Zero Dash One LLC &mdash; creative technology studio</div>
     <div>
-      <a href="mailto:hello@zerodashone.com">hello@zerodashone.com</a>
+      <a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a>
       <span class="sep">&middot;</span>
-      <a href="tel:+18302835500">830.283.5500</a>
+      <a class="cx-tel" data-t="8302835500" href="#">830 283 5500</a>
       <span class="sep">&middot;</span>
-      <span class="addr">[STREET], [CITY], TX [ZIP]</span>
+      <span class="addr">30131 Bulverde Ln. Unit #149, Bulverde, TX 78163</span>
     </div>
     <div>
       <a href="/privacy">Privacy</a>
       <span class="sep">&middot;</span>
       <a href="/terms">Terms</a>
     </div>
+    <a class="honeypot" href="mailto:trap@zerodashone.invalid" tabindex="-1" aria-hidden="true">do not contact</a>
   </footer>
+  <script>
+    (function(){
+      var at = String.fromCharCode(64);
+      document.querySelectorAll('a.cx-mail').forEach(function(a){
+        var addr = a.dataset.u + at + a.dataset.d;
+        a.textContent = addr;
+        a.setAttribute('href', 'mailto:' + addr);
+      });
+      document.querySelectorAll('a.cx-tel').forEach(function(a){
+        var t = a.dataset.t;
+        a.textContent = t.slice(0,3) + '.' + t.slice(3,6) + '.' + t.slice(6);
+        a.setAttribute('href', 'tel:+1' + t);
+      });
+    })();
+  </script>
   <script src="/sketch.js"></script>
 </body>
 </html>

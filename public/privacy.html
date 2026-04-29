@@ -73,9 +73,10 @@
     <h2>Who we are</h2>
     <p>
       Zero Dash One LLC<br>
-      [STREET], [CITY], TX [ZIP]<br>
-      Email: <a href="mailto:hello@zerodashone.com">hello@zerodashone.com</a><br>
-      Phone: <a href="tel:+18302835500">830.283.5500</a>
+      30131 Bulverde Ln. Unit #149<br>
+      Bulverde, TX 78163<br>
+      Email:<a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a><br>
+      Phone: <a class="cx-tel" data-t="8302835500" href="#">830 283 5500</a>
     </p>
 
     <h2>Information we collect</h2>
@@ -98,7 +99,7 @@
       No mobile information will be shared with third parties or affiliates for marketing or promotional purposes. Information sharing to subcontractors in support of our services (e.g., customer support, message delivery) is permitted. All other categories exclude text messaging originator opt-in data and consent; this information will not be shared with any third parties.
     </blockquote>
     <p><strong>Opt-in.</strong> You opt in to receive text messages from Zero Dash One by sending us a text first or by providing your number to us in writing for that purpose. We do not buy, rent, or scrape mobile numbers.</p>
-    <p><strong>Opt-out.</strong> Reply <strong>STOP</strong> to any text message from us to opt out at any time. Reply <strong>HELP</strong> for help or contact us at <a href="mailto:hello@zerodashone.com">hello@zerodashone.com</a>.</p>
+    <p><strong>Opt-out.</strong> Reply <strong>STOP</strong> to any text message from us to opt out at any time. Reply <strong>HELP</strong> for help or contact us at <a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a>.</p>
     <p><strong>Frequency &amp; cost.</strong> Message frequency varies. Message and data rates may apply.</p>
 
     <h2>Sharing</h2>
@@ -114,7 +115,7 @@
     <h2>Your choices</h2>
     <ul>
       <li>You may stop messaging us at any time. You may reply STOP to opt out of texts.</li>
-      <li>You may request access to, correction of, or deletion of personal information we hold about you by emailing <a href="mailto:hello@zerodashone.com">hello@zerodashone.com</a>.</li>
+      <li>You may request access to, correction of, or deletion of personal information we hold about you by emailing <a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a>.</li>
     </ul>
 
     <h2>Children</h2>
@@ -124,7 +125,7 @@
     <p>We may update this Privacy Policy from time to time. The effective date above will reflect the latest version. Continued use of the site after changes constitutes acceptance of the updated policy.</p>
 
     <h2>Contact</h2>
-    <p>Questions about this Privacy Policy? Email <a href="mailto:hello@zerodashone.com">hello@zerodashone.com</a> or call 830.283.5500.</p>
+    <p>Questions about this Privacy Policy? Email <a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a> or call <a class="cx-tel" data-t="8302835500" href="#">830 283 5500</a>.</p>
 
     <nav class="back">
       <a href="/">&larr; back to zerodashone.com</a>
@@ -132,5 +133,20 @@
       <a href="/terms">Terms</a>
     </nav>
   </main>
+  <script>
+    (function(){
+      var at = String.fromCharCode(64);
+      document.querySelectorAll('a.cx-mail').forEach(function(a){
+        var addr = a.dataset.u + at + a.dataset.d;
+        a.textContent = addr;
+        a.setAttribute('href', 'mailto:' + addr);
+      });
+      document.querySelectorAll('a.cx-tel').forEach(function(a){
+        var t = a.dataset.t;
+        a.textContent = t.slice(0,3) + '.' + t.slice(3,6) + '.' + t.slice(6);
+        a.setAttribute('href', 'tel:+1' + t);
+      });
+    })();
+  </script>
 </body>
 </html>

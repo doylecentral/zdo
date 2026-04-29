@@ -91,7 +91,7 @@
     <p>We may update these Terms from time to time. The effective date above will reflect the latest version. Continued use of the Site after changes constitutes acceptance of the updated Terms.</p>
 
     <h2>Contact</h2>
-    <p>Questions about these Terms? Email <a href="mailto:hello@zerodashone.com">hello@zerodashone.com</a> or call 830.283.5500.</p>
+    <p>Questions about these Terms? Email <a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a> or call <a class="cx-tel" data-t="8302835500" href="#">830 283 5500</a>.</p>
 
     <nav class="back">
       <a href="/">&larr; back to zerodashone.com</a>
@@ -99,5 +99,20 @@
       <a href="/privacy">Privacy</a>
     </nav>
   </main>
+  <script>
+    (function(){
+      var at = String.fromCharCode(64);
+      document.querySelectorAll('a.cx-mail').forEach(function(a){
+        var addr = a.dataset.u + at + a.dataset.d;
+        a.textContent = addr;
+        a.setAttribute('href', 'mailto:' + addr);
+      });
+      document.querySelectorAll('a.cx-tel').forEach(function(a){
+        var t = a.dataset.t;
+        a.textContent = t.slice(0,3) + '.' + t.slice(3,6) + '.' + t.slice(6);
+        a.setAttribute('href', 'tel:+1' + t);
+      });
+    })();
+  </script>
 </body>
 </html>
