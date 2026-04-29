@@ -62,6 +62,14 @@ async function build() {
     fs.copyFileSync(faviconSrc, path.join(__dirname, 'dist', 'favicon.svg'));
   }
 
+  // Copy static legal pages through verbatim (no obfuscation)
+  for (const file of ['privacy.html', 'terms.html']) {
+    const srcPath = path.join(__dirname, 'public', file);
+    if (fs.existsSync(srcPath)) {
+      fs.copyFileSync(srcPath, path.join(__dirname, 'dist', file));
+    }
+  }
+
   // Report sizes
   const srcSize = Buffer.byteLength(src) + Buffer.byteLength(qrSrc);
   const outSize = Buffer.byteLength(html);

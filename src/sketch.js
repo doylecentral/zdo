@@ -174,7 +174,7 @@ function rgba(r, g, b, a) {
 function setup() {
   resizeCanvas();
 
-  buildQR('mailto:doyle@doylecentral.com');
+  buildQR('mailto:hello@zerodashone.com');
 
   // Grain buffer
   grainCanvas = document.createElement('canvas');

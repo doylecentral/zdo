@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "public", "-l", "3000", "--no-clipboard"],
       "port": 3000
+    },
+    {
+      "name": "zdo-dist",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "dist", "-l", "3001", "--no-clipboard"],
+      "port": 3001
     }
   ]
 }

@@ -33,6 +33,42 @@
     canvas.loaded {
       opacity: 1;
     }
+    footer.contact {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 12px;
+      text-align: center;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.32);
+      pointer-events: none;
+      z-index: 10;
+      -webkit-user-select: text;
+      user-select: text;
+      padding: 0 12px;
+    }
+    footer.contact a, footer.contact .addr {
+      pointer-events: auto;
+    }
+    footer.contact a {
+      color: inherit;
+      text-decoration: none;
+      transition: color 0.25s ease;
+    }
+    footer.contact a:hover {
+      color: rgba(255, 255, 255, 0.75);
+      text-decoration: underline;
+    }
+    footer.contact .sep {
+      opacity: 0.5;
+      margin: 0 6px;
+    }
+    @media (max-width: 600px) {
+      footer.contact { font-size: 9px; bottom: 8px; line-height: 1.6; }
+    }
   </style>
 </head>
 <body>
@@ -47,6 +83,21 @@
       </div>
     </div>
   </noscript>
+  <footer class="contact" role="contentinfo">
+    <div>Zero Dash One LLC &mdash; creative technology studio</div>
+    <div>
+      <a href="mailto:hello@zerodashone.com">hello@zerodashone.com</a>
+      <span class="sep">&middot;</span>
+      <a href="tel:+18302835500">830.283.5500</a>
+      <span class="sep">&middot;</span>
+      <span class="addr">[STREET], [CITY], TX [ZIP]</span>
+    </div>
+    <div>
+      <a href="/privacy">Privacy</a>
+      <span class="sep">&middot;</span>
+      <a href="/terms">Terms</a>
+    </div>
+  </footer>
   <script src="/sketch.js"></script>
 </body>
 </html>
