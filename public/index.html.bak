@@ -44,27 +44,109 @@
     }
     .hero {
       position: relative;
-      height: 100vh;
+      min-height: 100vh;
       width: 100%;
-      pointer-events: none;
       z-index: 2;
     }
-    .scroll-cue {
+    .info-panel {
       position: absolute;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 10px;
-      letter-spacing: 0.2em;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 460px;
+      max-width: 100%;
+      background: rgba(0, 0, 0, 0.88);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 56px 40px 80px;
+      overflow-y: auto;
+      z-index: 3;
+      pointer-events: auto;
+    }
+    .info-panel header.brand {
+      margin-bottom: 36px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .info-panel header.brand h1 {
+      font-size: 14px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.35);
-      pointer-events: none;
-      animation: pulse 2.4s ease-in-out infinite;
+      color: #fff;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 0.25; transform: translateX(-50%) translateY(0); }
-      50% { opacity: 0.55; transform: translateX(-50%) translateY(4px); }
+    .info-panel header.brand .tag {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 8px;
     }
+    .info-panel .block { margin-bottom: 28px; }
+    .info-panel .block:last-child { margin-bottom: 0; }
+    .info-panel h2 {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.55);
+      margin-bottom: 12px;
+    }
+    .info-panel p {
+      font-size: 13px;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.82);
+      margin-bottom: 12px;
+    }
+    .info-panel p:last-child { margin-bottom: 0; }
+    .info-panel ul.svc {
+      list-style: none;
+      padding: 0;
+    }
+    .info-panel ul.svc li {
+      padding: 12px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 12px;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.78);
+    }
+    .info-panel ul.svc li:first-child { border-top: none; padding-top: 4px; }
+    .info-panel ul.svc strong {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.95);
+      margin-bottom: 4px;
+    }
+    .info-panel a {
+      color: #fff;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+      transition: border-color 0.2s ease;
+    }
+    .info-panel a:hover { border-bottom-color: #fff; }
+    .info-panel address {
+      font-style: normal;
+      font-size: 12px;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    @media (max-width: 720px) {
+      .info-panel {
+        position: relative;
+        width: 100%;
+        bottom: auto;
+        min-height: 100vh;
+        padding: 40px 24px 60px;
+        border-right: none;
+      }
+      .hero { min-height: auto; }
+    }
+
     main.copy {
       position: relative;
       z-index: 3;
@@ -146,6 +228,7 @@
         gap: 6px;
       }
     }
+
     footer.contact {
       position: relative;
       z-index: 3;
@@ -197,8 +280,54 @@
     </div>
   </noscript>
 
-  <section class="hero" aria-hidden="true">
-    <div class="scroll-cue">scroll</div>
+  <section class="hero">
+    <aside class="info-panel" aria-label="About Zero Dash One">
+      <header class="brand">
+        <h1>Zero Dash One</h1>
+        <span class="tag">Independent creative technology studio &middot; Bulverde, TX</span>
+      </header>
+
+      <div class="block">
+        <h2>About</h2>
+        <p>Zero Dash One LLC is an independent creative technology studio based in the Texas Hill Country. We design and build interactive web experiences, generative visual systems, and small-team product work for founders, agencies, and brands that care about craft.</p>
+        <p>Engagements are remote, project-based, and led directly by the studio principal &mdash; no junior pass-through, no agency overhead.</p>
+      </div>
+
+      <div class="block">
+        <h2>What we do</h2>
+        <ul class="svc">
+          <li><strong>Interactive Web</strong>Custom microsites, product launches, and one-off web pieces. The animation behind this panel is one of ours.</li>
+          <li><strong>Generative Visuals</strong>Motion systems, generative identity assets, and simulation-based imagery for brands, products, and editorial use.</li>
+          <li><strong>Site &amp; Product Builds</strong>Full-stack web builds for boutique brands and early-stage products. Design, code, deploy.</li>
+          <li><strong>Creative Tech Consulting</strong>Discovery, prototyping, and technical direction for studios and agencies on a specific brief.</li>
+        </ul>
+      </div>
+
+      <div class="block">
+        <h2>How we work</h2>
+        <p>Project-based with fixed scope and fixed price. Each engagement starts with a one-week paid discovery: scope, sketches, schedule, written proposal. We take on a small number of projects at a time.</p>
+      </div>
+
+      <div class="block">
+        <h2>Contact</h2>
+        <p>
+          <a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a><br>
+          <a class="cx-tel" data-t="8302835500" href="#">830 283 5500</a>
+        </p>
+        <address>
+          Zero Dash One LLC<br>
+          30131 Bulverde Ln. Unit #149<br>
+          Bulverde, TX 78163
+        </address>
+      </div>
+
+      <div class="block">
+        <h2>Legal</h2>
+        <p style="font-size:11px;">
+          <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Service</a>
+        </p>
+      </div>
+    </aside>
   </section>
 
   <main class="copy">
