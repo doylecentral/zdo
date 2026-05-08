@@ -3,55 +3,161 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zero Dash One</title>
-  <meta name="description" content="Zero Dash One — creative technology studio">
+  <title>Zero Dash One &mdash; creative technology studio</title>
+  <meta name="description" content="Zero Dash One is an independent creative technology studio in the Texas Hill Country. We design and build interactive web experiences, generative visual systems, and small-team product work.">
   <meta property="og:title" content="Zero Dash One">
-  <meta property="og:description" content="Creative technology studio">
+  <meta property="og:description" content="Creative technology studio. Interactive web, generative visuals, small-team product builds.">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Zero Dash One">
-  <meta name="twitter:description" content="Creative technology studio">
+  <meta name="twitter:description" content="Creative technology studio. Interactive web, generative visuals, small-team product builds.">
   <meta name="version" content="1.0.0">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <script src="/qrcode.min.js"></script>
   <style>
-    * { margin: 0; padding: 0; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      overflow: hidden;
       width: 100%;
-      height: 100%;
       background: #000;
+      color: rgba(255, 255, 255, 0.85);
       cursor: default;
-      -webkit-user-select: none;
-      user-select: none;
+      -webkit-user-select: text;
+      user-select: text;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      overflow-x: hidden;
+      overflow-y: auto;
     }
     canvas {
       display: block;
       opacity: 0;
       transition: opacity 1.5s ease-in;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1;
     }
     canvas.loaded {
       opacity: 1;
     }
+    .hero {
+      position: relative;
+      height: 100vh;
+      width: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .scroll-cue {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.35);
+      pointer-events: none;
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.25; transform: translateX(-50%) translateY(0); }
+      50% { opacity: 0.55; transform: translateX(-50%) translateY(4px); }
+    }
+    main.copy {
+      position: relative;
+      z-index: 3;
+      background: #000;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    main.copy section {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 80px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    main.copy section:last-of-type { border-bottom: none; }
+    main.copy h2 {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.55);
+      margin-bottom: 24px;
+    }
+    main.copy h3 {
+      font-size: 22px;
+      font-weight: 400;
+      line-height: 1.4;
+      letter-spacing: 0.01em;
+      margin-bottom: 18px;
+    }
+    main.copy p, main.copy li {
+      font-size: 14px;
+      line-height: 1.75;
+      color: rgba(255, 255, 255, 0.78);
+      margin-bottom: 16px;
+    }
+    main.copy ul.services {
+      list-style: none;
+      padding: 0;
+      margin-top: 8px;
+    }
+    main.copy ul.services li {
+      padding: 18px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    main.copy ul.services li:last-child {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    main.copy ul.services .label {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.55);
+      padding-top: 3px;
+    }
+    main.copy ul.services .desc {
+      font-size: 14px;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.82);
+    }
+    main.copy a {
+      color: #fff;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+      transition: border-color 0.2s ease;
+    }
+    main.copy a:hover { border-bottom-color: #fff; }
+    .cta {
+      margin-top: 32px;
+      font-size: 14px;
+    }
+    @media (max-width: 600px) {
+      main.copy section { padding: 56px 20px; }
+      main.copy h3 { font-size: 18px; }
+      main.copy ul.services li {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+    }
     footer.contact {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 12px;
+      position: relative;
+      z-index: 3;
+      background: #000;
       text-align: center;
       font-family: 'SF Mono', Menlo, Consolas, monospace;
       font-size: 10px;
       letter-spacing: 0.05em;
-      line-height: 1.7;
-      color: rgba(255, 255, 255, 0.32);
-      pointer-events: none;
-      z-index: 10;
-      -webkit-user-select: text;
-      user-select: text;
-      padding: 0 12px;
-    }
-    footer.contact a, footer.contact .addr {
-      pointer-events: auto;
+      line-height: 1.9;
+      color: rgba(255, 255, 255, 0.4);
+      padding: 32px 16px 28px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
     footer.contact a {
       color: inherit;
@@ -59,7 +165,7 @@
       transition: color 0.25s ease;
     }
     footer.contact a:hover {
-      color: rgba(255, 255, 255, 0.75);
+      color: rgba(255, 255, 255, 0.85);
       text-decoration: underline;
     }
     footer.contact .sep {
@@ -74,13 +180,13 @@
       pointer-events: none;
     }
     @media (max-width: 600px) {
-      footer.contact { font-size: 9px; bottom: 8px; line-height: 1.6; }
+      footer.contact { font-size: 9px; line-height: 1.7; }
     }
   </style>
 </head>
 <body>
   <noscript>
-    <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#fff;font-family:Helvetica,sans-serif;text-align:center;">
+    <div style="position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:#000;color:#fff;font-family:Helvetica,sans-serif;text-align:center;">
       <div>
         <svg viewBox="0 0 64 64" width="64" height="64" style="margin-bottom:1rem;">
           <polygon points="32,8 56,56 8,56" fill="none" stroke="#fff" stroke-width="2"/>
@@ -90,14 +196,67 @@
       </div>
     </div>
   </noscript>
+
+  <section class="hero" aria-hidden="true">
+    <div class="scroll-cue">scroll</div>
+  </section>
+
+  <main class="copy">
+    <section id="about">
+      <h2>About</h2>
+      <h3>Zero Dash One is an independent creative technology studio based in the Texas Hill Country.</h3>
+      <p>We design and build interactive web experiences, generative visual systems, and small-team product work for founders, agencies, and brands that care about craft. Engagements are remote, project-based, and led directly by the studio principal &mdash; no junior pass-through, no agency overhead.</p>
+      <p>The piece you scrolled past is a hand-written Canvas2D sketch shipped as a single, obfuscated, ~80 KB HTML file. It is also a demo of how we work: small, deliberate, and end-to-end.</p>
+    </section>
+
+    <section id="services">
+      <h2>What we do</h2>
+      <ul class="services">
+        <li>
+          <div class="label">Interactive Web</div>
+          <div class="desc">Custom microsites, product launches, and one-off web pieces. Hand-rolled rendering, performance budgets, and a designed feel for everything that moves &mdash; not a template.</div>
+        </li>
+        <li>
+          <div class="label">Generative Visuals</div>
+          <div class="desc">Motion systems, generative identity assets, and simulation-based imagery for brands, products, and editorial use. Output ranges from interactive web to high-resolution stills and short loops.</div>
+        </li>
+        <li>
+          <div class="label">Site &amp; Product Builds</div>
+          <div class="desc">Full-stack web builds for boutique brands and early-stage products. Design, code, deploy. Modern stack &mdash; statically generated where it makes sense, edge-deployed, low-overhead to maintain.</div>
+        </li>
+        <li>
+          <div class="label">Creative Tech Consulting</div>
+          <div class="desc">Discovery, prototyping, and technical direction for studios and agencies that need a creative-technology partner on a specific brief. Short engagements, written outputs, no retainer.</div>
+        </li>
+      </ul>
+    </section>
+
+    <section id="how">
+      <h2>How we work</h2>
+      <p>Project-based with fixed scope and fixed price. Every engagement starts with a one-week paid discovery: scope, sketches, schedule, and a written proposal. From there, weekly check-ins through launch. No retainers, no monthly creep, no surprise invoices.</p>
+      <p>We take on a small number of projects at a time and decline most inquiries. That&rsquo;s how the work stays good. If your timeline is right, we&rsquo;ll tell you. If it isn&rsquo;t, we&rsquo;ll tell you that too &mdash; and usually point you at someone better suited.</p>
+    </section>
+
+    <section id="contact">
+      <h2>Get in touch</h2>
+      <p>Have a project in mind? The fastest path is email.</p>
+      <p class="cta">
+        <a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a>
+        <br>
+        <a class="cx-tel" data-t="8302835500" href="#">830 283 5500</a>
+        <br>
+        30131 Bulverde Ln. Unit #149, Bulverde, TX 78163
+      </p>
+      <p>We respond to inbound inquiries within two business days.</p>
+    </section>
+  </main>
+
   <footer class="contact" role="contentinfo">
-    <div>Zero Dash One LLC &mdash; creative technology studio</div>
+    <div>Zero Dash One LLC &mdash; creative technology studio &mdash; Bulverde, TX</div>
     <div>
       <a class="cx-mail" data-u="hello" data-d="zerodashone.com" href="#">hello at zerodashone dot com</a>
       <span class="sep">&middot;</span>
       <a class="cx-tel" data-t="8302835500" href="#">830 283 5500</a>
-      <span class="sep">&middot;</span>
-      <span class="addr">30131 Bulverde Ln. Unit #149, Bulverde, TX 78163</span>
     </div>
     <div>
       <a href="/privacy">Privacy</a>
